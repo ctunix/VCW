@@ -339,7 +339,7 @@ def train_and_evaluate(
     net_d.train()
 
     # Prepare data iterator
-    if hps.if_cache_data_in_gpu == True:
+    if hps.if_cache_data_in_gpu:
         # Use Cache
         data_iterator = cache
         if cache == []:
@@ -440,7 +440,7 @@ def train_and_evaluate(
         else:
             phone, phone_lengths, spec, spec_lengths, wave, wave_lengths, sid = info
         ## Load on CUDA
-        if (hps.if_cache_data_in_gpu == False) and torch.cuda.is_available():
+        if not hps.if_cache_data_in_gpu and torch.cuda.is_available():
             phone = phone.cuda(rank, non_blocking=True)
             phone_lengths = phone_lengths.cuda(rank, non_blocking=True)
             if hps.if_f0 == 1:

@@ -95,7 +95,7 @@ if len(todo) == 0:
 
 
 printt(i18n("[HuBERT特征] 正在加载模型：%s") % model_path)
-if os.access(model_path, os.F_OK) == False:
+if not os.access(model_path, os.F_OK):
     printt(
         i18n("[HuBERT特征][失败] 模型不存在：%s")
         % model_path

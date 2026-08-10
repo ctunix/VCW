@@ -89,7 +89,7 @@ class FeatureInput(object):
                     f0, [[pad_size, p_len - len(f0) - pad_size]], mode="constant"
                 )
         elif f0_method == "rmvpe":
-            if hasattr(self, "model_rmvpe") == False:
+            if not hasattr(self, "model_rmvpe"):
                 from infer.rmvpe import RMVPE
 
                 printt(i18n("正在加载RMVPE模型"))
@@ -133,8 +133,8 @@ class FeatureInput(object):
             for idx, (inp_path, opt_path1, opt_path2) in enumerate(paths):
                 try:
                     if (
-                        os.path.exists(opt_path1 + ".npy") == True
-                        and os.path.exists(opt_path2 + ".npy") == True
+                        os.path.exists(opt_path1 + ".npy")
+                        and os.path.exists(opt_path2 + ".npy")
                     ):
                         skipped += 1
                         continue

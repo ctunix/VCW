@@ -67,7 +67,8 @@ from train.process_ckpt import (
     show_info,
 )
 from i18n.i18n import I18nAuto
-import torch, platform
+import platform
+import torch
 import numpy as np
 import gradio as gr
 import pathlib
@@ -1254,7 +1255,7 @@ def change_f0(if_f0_3, sr2, version19):  # f0method8,pretrained_G14,pretrained_D
     return (
         {"visible": if_f0_3, "__type__": "update"},
         {"visible": bool(if_f0_3) and F0GPUVisible, "__type__": "update"},
-        *get_pretrained_models(path_str, "f0" if if_f0_3 == True else "", sr2),
+        *get_pretrained_models(path_str, "f0" if if_f0_3 else "", sr2),
     )
 
 

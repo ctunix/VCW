@@ -278,7 +278,7 @@ class Pipeline(object):
             try:
                 index = faiss.read_index(file_index)
                 index_vectors = index.reconstruct_n(0, index.ntotal)
-            except:
+            except Exception:
                 traceback.print_exc()
                 index = index_vectors = None
         else:

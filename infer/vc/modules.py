@@ -1,12 +1,11 @@
-import traceback
 import logging
-
-logger = logging.getLogger(__name__)
+import os
+import traceback
+from io import BytesIO
 
 import numpy as np
 import soundfile as sf
 import torch
-from io import BytesIO
 
 from infer.audio import load_audio, wav2
 from infer.module.models import (
@@ -16,12 +15,13 @@ from infer.module.models import (
     SynthesizerTrnMs768NSFsid_nono,
 )
 from infer.vc.pipeline import Pipeline
-from infer.vc.utils import *
+from infer.vc.utils import get_index_path_from_model, load_hubert
 from i18n.i18n import I18nAuto
 from tools.progress import batch_status, should_report
 from tools.cuda_graph import clear_cuda_graph_cache
 
 
+logger = logging.getLogger(__name__)
 i18n = I18nAuto()
 
 

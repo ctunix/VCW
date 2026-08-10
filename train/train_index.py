@@ -124,7 +124,9 @@ if not feature_groups or not any(feature_groups.values()):
 
 
 def train_one_speaker(speaker_id, paths):
-    scope = lambda message: speaker_scope(message, speaker_id)
+    def scope(message):
+        return speaker_scope(message, speaker_id)
+
     features = [np.load(path) for path in paths]
     big_npy = np.concatenate(features, 0)
     big_npy = big_npy[np.random.permutation(big_npy.shape[0])]

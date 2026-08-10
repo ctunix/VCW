@@ -1,11 +1,10 @@
 import os
-from typing import List, Optional, Tuple
 import numpy as np
 import torch
 
 import torch.nn as nn
 import torch.nn.functional as F
-from librosa.util import normalize, pad_center, tiny
+from librosa.util import pad_center
 from scipy.signal import get_window
 
 from tools.cuda_graph import run_cuda_graph
@@ -475,7 +474,7 @@ class MelSpectrogram(torch.nn.Module):
                 magnitude = F.pad(magnitude, (0, 0, 0, size - resize))
             magnitude = magnitude[:, :size, :] * self.win_length / win_length_new
         mel_output = torch.matmul(self.mel_basis, magnitude)
-        if self.is_half == True:
+        if self.is_half:
             mel_output = mel_output.half()
         log_mel_spec = torch.log(torch.clamp(mel_output, min=self.clamp))
         return log_mel_spec
@@ -598,7 +597,7 @@ class RMVPE:
             hidden = hidden.squeeze(0).cpu().numpy()
         else:
             hidden = hidden[0]
-        if self.is_half == True:
+        if self.is_half:
             hidden = hidden.astype("float32")
 
         f0 = self.decode(hidden, thred=thred)
