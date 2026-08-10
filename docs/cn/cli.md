@@ -1,15 +1,15 @@
-# RVC 命令行训练与离线推理
+# VCW 命令行训练与离线推理
 
 [English documentation](../en/cli.md)
 
-本文档只介绍 RVC 的训练和离线音色转换。PyMSS/UVR5 音源分离使用另一套 CLI。
+本文档只介绍 VCW 的训练和离线音色转换。PyMSS/UVR5 音源分离使用另一套 CLI。
 
 ## 运行目录
 
 所有命令均在实际安装的项目根目录执行。将下面的占位内容替换为自己的路径：
 
 ```powershell
-Set-Location "<RVC项目根目录>"
+Set-Location "<VCW项目根目录>"
 ```
 
 选择项目内置 Python 或已经安装好项目依赖的系统 Python。只保留其中一行：

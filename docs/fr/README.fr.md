@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1>Retrieval-based-Voice-Conversion-WebUI</h1>
+<h1>VCW</h1>
 Un framework simple et facile à utiliser pour la conversion du timbre vocal / le changement de voix.<br><br>
 
 [![madewithlove](https://img.shields.io/badge/made_with-%E2%9D%A4-red?style=for-the-badge&labelColor=orange
@@ -26,7 +26,7 @@ Cliquez ici pour voir notre [vidéo de démonstration](https://www.bilibili.com/
 
 > Le modèle de base est formé avec près de 50 heures de données VCTK de haute qualité et open source. Aucun souci concernant les droits d'auteur, n'hésitez pas à l'utiliser.
 
-> Attendez-vous au modèle de base RVCv3 : plus de paramètres, plus de données, de meilleurs résultats, une vitesse d'inférence presque identique, et nécessite moins de données pour la formation.
+> Attendez-vous au modèle de base VCW v3 : plus de paramètres, plus de données, de meilleurs résultats, une vitesse d'inférence presque identique, et nécessite moins de données pour la formation.
 
 ## Introduction
 Ce dépôt a les caractéristiques suivantes :
@@ -128,7 +128,7 @@ assets/
 ├── pretrained/
 ├── pretrained_v2/
 ├── pymss_weights/
-├── weights/        # user RVC .pth models
+├── weights/        # user VCW .pth models
 └── indices/        # user .index files
 logs/
 └── mute/           # training silence samples

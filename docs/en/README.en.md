@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1>Retrieval-based-Voice-Conversion-WebUI</h1>
+<h1>VCW</h1>
 A simple, easy-to-use voice timbre conversion / voice changer framework.<br><br>
 
 [![madewithlove](https://img.shields.io/badge/made_with-%E2%9D%A4-red?style=for-the-badge&labelColor=orange
@@ -43,7 +43,7 @@ A simple, easy-to-use voice timbre conversion / voice changer framework.<br><br>
 
 > High quality licensed song datasets will be added to the training-set often for your use, without having to worry about copyright infringement.
 
-> Please look forward to the pretrained base model of RVCv3, which has larger parameters, more training data, better results, unchanged inference speed, and requires less training data for training.
+> Please look forward to the pretrained base model of VCW v3, which has larger parameters, more training data, better results, unchanged inference speed, and requires less training data for training.
 
 ## Features:
 + Reduce tone leakage by replacing the source feature to training-set feature using top1 retrieval;
@@ -144,7 +144,7 @@ assets/
 ├── pretrained/
 ├── pretrained_v2/
 ├── pymss_weights/
-├── weights/        # user RVC .pth models
+├── weights/        # user VCW .pth models
 └── indices/        # user .index files
 logs/
 └── mute/           # training silence samples

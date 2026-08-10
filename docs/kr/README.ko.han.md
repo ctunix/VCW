@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1>Retrieval-based-Voice-Conversion-WebUI</h1>
+<h1>VCW</h1>
 簡單하고 使用하기 쉬운 音色變換/變聲器 프레임워크.<br><br>
 
 [![madewithlove](https://img.shields.io/badge/made_with-%E2%9D%A4-red?style=for-the-badge&labelColor=orange
@@ -118,7 +118,7 @@ assets/
 ├── pretrained/
 ├── pretrained_v2/
 ├── pymss_weights/
-├── weights/        # user RVC .pth models
+├── weights/        # user VCW .pth models
 └── indices/        # user .index files
 logs/
 └── mute/           # training silence samples

@@ -68,7 +68,7 @@ if __name__ == "__main__":
         def __init__(self) :
             self.gui_config = GUIConfig()
             self.config = Config()
-            printt("RVC_CUDA_GRAPH=%s", os.environ.get("RVC_CUDA_GRAPH", "0"))
+            printt("VCW_CUDA_GRAPH=%s", os.environ.get("RVC_CUDA_GRAPH", "0"))
             self.function = "vc"
             self.delay_time = 0
             self.hostapis = None
@@ -676,7 +676,7 @@ if __name__ == "__main__":
             else:
                 self.resampler2 = None
             # Bundled torch.istft is not CUDA Graph-capturable, so TorchGate
-            # stays eager while resampling and RVC inference still use graphs.
+                    # stays eager while resampling and VCW inference still use graphs.
             self.tg = TorchGate(
                 sr=self.gui_config.samplerate, n_fft=4 * self.zc, prop_decrease=0.9
             ).to(self.config.device)

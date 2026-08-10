@@ -88,7 +88,7 @@ Primeira coisa que gostaria de lembrar, não necessariamente quanto mais epochs 
     - Backup você pode aumentar ou diminuir
 - Agora você vai ver a opção ``Carregue o caminho G do modelo base pré-treinado:`` e ``Carregue o caminho D do modelo base pré-treinado:``
     -Aqui você vai por o caminho dos modelos que estão em ``./logs/minha-voz``
-        - Vai ficar algo parecido com isso ``e:/RVC/logs/minha-voz/G_0000.pth`` e ``e:/RVC/logs/minha-voz/D_0000.pth``
+        - Vai ficar algo parecido com isso ``e:/VCW/logs/minha-voz/G_0000.pth`` e ``e:/VCW/logs/minha-voz/D_0000.pth``
 -Coloque pra treinar
 
 **Lembrando que a pasta logs tem que ter todos os arquivos e não somente o arquivo ``G`` e ``D``**
@@ -140,7 +140,7 @@ Script de inference:
 
 por exemplo<br>
 
-``runtime\python.exe myinfer.py 0 "E:\audios\1111.wav" "E:\RVC\logs\minha-voz\added_IVF677_Flat_nprobe_7.index" harvest "test.wav" "weights/mi-test.pth" 0.6 cuda:0 True``<br>
+``runtime\python.exe myinfer.py 0 "E:\audios\1111.wav" "E:\VCW\logs\minha-voz\added_IVF677_Flat_nprobe_7.index" harvest "test.wav" "weights/mi-test.pth" 0.6 cuda:0 True``<br>
 
 
 f0up_key=sys.argv[1]<br>

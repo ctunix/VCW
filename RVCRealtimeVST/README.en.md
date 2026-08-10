@@ -1,12 +1,12 @@
-# RVC Realtime VST Developer Guide
+# VCW Realtime VST Developer Guide
 
 [English](./README.en.md) | [简体中文](./README.md)
 
-RVC Realtime VST is a Windows x64 real-time voice conversion plug-in project. The same source tree builds both VST2 and VST3 formats.
+VCW Realtime VST is a Windows x64 real-time voice conversion plug-in project. The same source tree builds both VST2 and VST3 formats.
 
-The plug-in is implemented in C++17 with iPlug2. Model loading and RVC inference run in a separate Python worker process. The host audio thread only handles audio buffers, mixing, and lock-free queue operations.
+The plug-in is implemented in C++17 with iPlug2. Model loading and VCW inference run in a separate Python worker process. The host audio thread only handles audio buffers, mixing, and lock-free queue operations.
 
-This directory does not include a Python runtime, RVC models, index files, training data, or a complete RVC runtime package. None of these runtime files are required to compile the plug-in.
+This directory does not include a Python runtime, VCW models, index files, training data, or a complete VCW runtime package. None of these runtime files are required to compile the plug-in.
 
 ## Supported targets
 
@@ -15,7 +15,7 @@ This directory does not include a Python runtime, RVC models, index files, train
 - 64-bit VST3 bundle
 - Mono input/output, mono-to-stereo, and stereo input/output
 - RMVPE, FCPE, and PM F0 methods
-- External 64-bit RVC Python runtime
+- External 64-bit VCW Python runtime
 - `.pth` models and optional `.index` files
 - 64-bit VST hosts such as Studio One
 
@@ -30,7 +30,7 @@ flowchart LR
     InputRing --> Bridge["WorkerClient management thread"]
     Bridge <--> IPC["Shared memory + Windows Events"]
     IPC <--> Worker["Separate Python worker"]
-    Worker --> RVC["External RVC source, model, and CUDA runtime"]
+    Worker --> VCW["External VCW source, model, and CUDA runtime"]
     Worker --> IPC
     Bridge --> OutputRing["Lock-free output ring buffer"]
     OutputRing --> Plugin
@@ -39,7 +39,7 @@ flowchart LR
 
 The plug-in starts the package's `runtime\python.exe` with `CreateProcessW` and executes the bundled `worker\rvc_worker.py`. Audio is transferred through Windows shared memory. Named Events synchronize requests and responses. Audio is not transported through network ports, HTTP, or ordinary stdin/stdout pipes.
 
-The Python worker imports the following modules from the RVC root selected by the user:
+The Python worker imports the following modules from the VCW root selected by the user:
 
 ```text
 configs/config.py
@@ -54,13 +54,13 @@ RVCRealtimeVST/
 |-- CMakeLists.txt
 |-- config.h
 |-- src/                         Plug-in, UI, state, and IPC source
-|-- worker/rvc_worker.py         Python/RVC inference bridge
+|-- worker/rvc_worker.py         Python/VCW inference bridge
 |-- resources/                   Windows resources, font, and user guide
 |-- scripts/
 |   |-- prepare-dependencies.ps1 Validate and prepare locked dependencies
 |   |-- build.ps1                Build and create the release ZIP
 |   |-- test-all.ps1             VST2, VST3, and optional CUDA tests
-|   `-- test-worker.ps1          Real RVC worker test
+|   `-- test-worker.ps1          Real VCW worker test
 |-- tools/                       VST2 and worker smoke-test source
 `-- third_party/                 Git submodules, compatibility header, licenses
 ```
@@ -91,7 +91,7 @@ CMake 3.26.6
 The following components are not required to compile the plug-in binaries:
 
 - System Python
-- An RVC runtime package
+- An VCW runtime package
 - PyTorch
 - CUDA Toolkit
 - An NVIDIA GPU
@@ -106,7 +106,7 @@ A recursive clone is recommended. GitHub's Download ZIP archive does not contain
 ```powershell
 git config --global core.longpaths true
 git clone --recursive https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI.git
-cd Retrieval-based-Voice-Conversion-WebUI\RVCRealtimeVST
+cd VCW\RVCRealtimeVST
 ```
 
 For an existing non-recursive clone, run:
@@ -148,7 +148,7 @@ The script performs these steps:
 Primary outputs:
 
 ```text
-dist/RVC Realtime.dll
+dist/VCW Realtime.dll
 dist/RVCRealtime.resources/worker/rvc_worker.py
 dist/RVCRealtime.vst3/
 dist/RVCRealtime-Win64.zip
@@ -156,7 +156,7 @@ dist/RVCRealtime-Win64.zip
 
 ## Tests
 
-### Format tests without an RVC runtime
+### Format tests without an VCW runtime
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\test-all.ps1 -SkipWorker
@@ -164,11 +164,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-all.ps1 -SkipWorker
 
 This command runs the VST2 dynamic loading and audio processing smoke test, then builds and runs the Steinberg VST3 Validator.
 
-### Real RVC worker test
+### Real VCW worker test
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\test-worker.ps1 `
-  -RvcRoot "D:\path\to\RVC-package" `
+  -RvcRoot "D:\path\to\VCW-package" `
   -Model "D:\path\to\model.pth" `
   -Index "D:\path\to\model.index"
 ```
@@ -179,14 +179,14 @@ Run the complete test suite with:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\test-all.ps1 `
-  -RvcRoot "D:\path\to\RVC-package" `
+  -RvcRoot "D:\path\to\VCW-package" `
   -Model "D:\path\to\model.pth" `
   -Index "D:\path\to\model.index"
 ```
 
-## RVC runtime requirements
+## VCW runtime requirements
 
-At runtime, the user must provide a separate RVC package containing both source code and a Python environment. At minimum, it must provide:
+At runtime, the user must provide a separate VCW package containing both source code and a Python environment. At minimum, it must provide:
 
 ```text
 runtime/python.exe             64-bit Python
@@ -223,7 +223,7 @@ VST3 loads its worker from inside the bundle:
 RVCRealtime.vst3/Contents/Resources/worker/rvc_worker.py
 ```
 
-The source directory, developer RVC path, and test model paths are not compiled into the release plug-ins.
+The source directory, developer VCW path, and test model paths are not compiled into the release plug-ins.
 
 ## User configuration and logs
 
@@ -267,7 +267,7 @@ Run `scripts\build.ps1` again after the submodules have been initialized.
 git config --global core.longpaths true
 ```
 
-Cloning to a shorter location such as `D:\src\RVC` can also help.
+Cloning to a shorter location such as `D:\src\VCW` can also help.
 
 ### The plug-in remains on LOADING MODEL or displays ERROR
 
@@ -278,7 +278,7 @@ Inspect:
 %TEMP%\RVCRealtime\logs\instance_*.json.log
 ```
 
-Also verify the RVC root, 64-bit Python executable, model, optional index, and NVIDIA driver.
+Also verify the VCW root, 64-bit Python executable, model, optional index, and NVIDIA driver.
 
 ### Rebuild after source changes
 

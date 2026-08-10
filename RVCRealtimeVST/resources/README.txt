@@ -1,16 +1,16 @@
-RVC Realtime - Studio One 安装与使用说明
+VCW Realtime - Studio One 安装与使用说明
 ========================================
 
 适用系统
 --------
 - Windows 10/11 64 位
 - Studio One 64 位
-- 用户已经拥有可正常运行的 RVC 源码和 Python/CUDA 环境整合包
+- 用户已经拥有可正常运行的 VCW 源码和 Python/CUDA 环境整合包
 
 压缩包内容
 ----------
 VST2\
-  RVC Realtime.dll
+  VCW Realtime.dll
   RVCRealtime.resources\worker\rvc_worker.py
 
 VST3\
@@ -19,14 +19,14 @@ VST3\
 VST2 安装方法
 -------------
 1. 把 VST2 文件夹中的以下两个项目一起复制到 Studio One 已扫描的 VST2 插件目录：
-   - RVC Realtime.dll
+   - VCW Realtime.dll
    - RVCRealtime.resources 文件夹
 2. DLL 和 RVCRealtime.resources 必须保持同级，不能只复制 DLL。
 3. 常见的自定义 VST2 目录示例：C:\VSTPlugins
 4. 在 Studio One 的“选项/位置/VST 插件”中确认该目录已加入扫描列表，然后重新扫描插件。
 
 正确示例：
-C:\VSTPlugins\RVC Realtime.dll
+C:\VSTPlugins\VCW Realtime.dll
 C:\VSTPlugins\RVCRealtime.resources\worker\rvc_worker.py
 
 VST3 安装方法
@@ -41,20 +41,20 @@ C:\Program Files\Common Files\VST3\RVCRealtime.vst3\Contents\x86_64-win\RVCRealt
 
 首次使用
 --------
-1. 在 Studio One 的音轨上加载“RVC Realtime”。
-2. 点击 RVC ROOT，选择已有 RVC 源码与环境整合包的根目录。
+1. 在 Studio One 的音轨上加载“VCW Realtime”。
+2. 点击 VCW ROOT，选择已有 VCW 源码与环境整合包的根目录。
 3. 插件会自动检测该目录下的 runtime\python.exe。
 4. PYTHON 保持空白时，手动选择整合包中可用的 64 位 python.exe。
 5. 选择 .pth 模型；需要索引检索时再选择 .index 文件。
 6. 点击右下角 ENGINE。状态变成 READY 后开始输出变声结果。
 
-RVC 整合包要求
+VCW 整合包要求
 -------------
 所选根目录至少需要包含：
 - infer\rtrvc.py
 - configs\config.py
 - Python 环境及其依赖
-- HuBERT、RMVPE 等原 RVC 实时推理所需文件
+- HuBERT、RMVPE 等原 VCW 实时推理所需文件
 - 用户选择的 .pth 模型
 
 配置与日志
@@ -72,8 +72,8 @@ RVC 整合包要求
 - Studio One 找不到 VST2：确认已添加 DLL 所在目录并重新扫描。
 - Studio One 找不到 VST3：确认复制的是整个 .vst3 文件夹。
 - VST2 提示 worker resource is missing：RVCRealtime.resources 没有与 DLL 放在同一目录。
-- 启动提示 Python 错误：重新选择 RVC ROOT，并检查 runtime\python.exe 或手动选择 Python。
-- 启动提示模型或源码缺失：检查界面选择路径以及 RVC 整合包内容。
+- 启动提示 Python 错误：重新选择 VCW ROOT，并检查 runtime\python.exe 或手动选择 Python。
+- 启动提示模型或源码缺失：检查界面选择路径以及 VCW 整合包内容。
 - 系统提示缺少 MSVC DLL：安装 Microsoft Visual C++ 2015-2022 Redistributable x64。
 
 操作说明

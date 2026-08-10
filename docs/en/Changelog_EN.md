@@ -33,7 +33,7 @@
 - Solve the CPU consumption problem caused by faiss searching during real-time voice changes
 
 2-Key updates
-- Train the current strongest open-source vocal pitch extraction model RMVPE, and use it for RVC training, offline/real-time inference, supporting PyTorch/Onnx/DirectML
+- Train the current strongest open-source vocal pitch extraction model RMVPE, and use it for VCW training, offline/real-time inference, supporting PyTorch/Onnx/DirectML
 - Support for AMD and Intel graphics cards through Pytorch_DML
 
 (1) Real time voice change (2) Inference (3) Separation of vocal accompaniment (4) Training not currently supported, will switch to CPU training; supports RMVPE inference of gpu by Onnx_Dml
@@ -53,7 +53,7 @@ Failed experiments:
 - ~~Random data augmentation when training: not effective~~
 
 todolist：
-- ~~Vocos-RVC (tiny vocoder): not effective~~
+- ~~Vocos-VCW (tiny vocoder): not effective~~
 - ~~Crepe support for training：replaced by RMVPE~~
 - ~~Half precision crepe inference：replaced by RMVPE. And hard to achive.~~
 - F0 editor support
@@ -74,7 +74,7 @@ todolist：
 - Support post processing resampling for exporting audio
 - Multi processing "n_cpu" setting for training is changed from "f0 extraction" to "data preprocessing and f0 extraction"
 - Automatically detect the index paths under the logs folder and provide a drop-down list function
-- Add "Frequently Asked Questions and Answers" on the tab page (you can also refer to github RVC wiki)
+- Add "Frequently Asked Questions and Answers" on the tab page (you can also refer to github VCW wiki)
 - When inference, harvest pitch is cached when using same input audio path (purpose: using harvest pitch extraction, the entire pipeline will go through a long and repetitive pitch extraction process. If caching is not used, users who experiment with different timbre, index, and pitch median filtering radius settings will experience a very painful waiting process after the first inference)
 
 ### 2023-05-14

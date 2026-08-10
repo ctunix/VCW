@@ -1,8 +1,8 @@
-# RVC Command-Line Training and Offline Inference
+# VCW Command-Line Training and Offline Inference
 
 [中文文档](../cn/cli.md)
 
-This document covers RVC training and offline voice conversion. PyMSS/UVR5 source separation uses a separate CLI.
+This document covers VCW training and offline voice conversion. PyMSS/UVR5 source separation uses a separate CLI.
 
 ## Working directory
 

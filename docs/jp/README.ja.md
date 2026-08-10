@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1>Retrieval-based-Voice-Conversion-WebUI</h1>
+<h1>VCW</h1>
 シンプルで使いやすい声質変換／ボイスチェンジャーフレームワーク。<br><br>
 
 [![madewithlove](https://img.shields.io/badge/made_with-%E2%9D%A4-red?style=for-the-badge&labelColor=orange)](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI)
@@ -23,7 +23,7 @@
 
 > 著作権侵害を心配することなく使用できるように、基底モデルは約 50 時間の高品質なオープンソースデータセットで訓練されています。
 
-> RVCv3 の基底モデルルをご期待ください。より大きなパラメータ、より大きなデータ、より良い効果を提供し、基本的に同様の推論速度を維持しながら、トレーニングに必要なデータ量はより少なくなります。
+> VCW v3 の基底モデルルをご期待ください。より大きなパラメータ、より大きなデータ、より良い効果を提供し、基本的に同様の推論速度を維持しながら、トレーニングに必要なデータ量はより少なくなります。
 
 <table>
    <tr>
@@ -148,7 +148,7 @@ assets/
 ├── pretrained/
 ├── pretrained_v2/
 ├── pymss_weights/
-├── weights/        # user RVC .pth models
+├── weights/        # user VCW .pth models
 └── indices/        # user .index files
 logs/
 └── mute/           # training silence samples

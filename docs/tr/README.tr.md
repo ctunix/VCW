@@ -28,7 +28,7 @@ RVC Kullanarak Gerçek Zamanlı Ses Dönüşüm Yazılımı: [w-okada/voice-chan
 
 > Yüksek kaliteli lisanslı şarkı veri setleri telif hakkı ihlali olmadan kullanımınız için eklenecektir.
 
-> Lütfen daha büyük parametrelere, daha fazla eğitim verisine sahip RVCv3'ün ön eğitimli temel modeline göz atın; daha iyi sonuçlar, değişmeyen çıkarsama hızı ve daha az eğitim verisi gerektirir.
+> Lütfen daha büyük parametrelere, daha fazla eğitim verisine sahip VCW v3'ün ön eğitimli temel modeline göz atın; daha iyi sonuçlar, değişmeyen çıkarsama hızı ve daha az eğitim verisi gerektirir.
 
 ## Özet
 Bu depo aşağıdaki özelliklere sahiptir:
@@ -130,7 +130,7 @@ assets/
 ├── pretrained/
 ├── pretrained_v2/
 ├── pymss_weights/
-├── weights/        # user RVC .pth models
+├── weights/        # user VCW .pth models
 └── indices/        # user .index files
 logs/
 └── mute/           # training silence samples

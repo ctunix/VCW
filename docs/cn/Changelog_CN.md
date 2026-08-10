@@ -41,7 +41,7 @@
  - 解决实时变声中开启索引导致的CPU极大占用问题
 
 2-重点更新
- - 训练出当前最强开源人声音高提取模型RMVPE，并用于RVC的训练、离线/实时推理，支持pytorch/onnx/DirectML
+ - 训练出当前最强开源人声音高提取模型RMVPE，并用于VCW的训练、离线/实时推理，支持pytorch/onnx/DirectML
  - 通过pytorch-dml支持A卡和I卡的
 （1）实时变声（2）推理（3）人声伴奏分离（4）训练暂未支持，会切换至CPU训练；通过onnx_dml支持rmvpe_gpu的推理
 
@@ -63,7 +63,7 @@
 todolist：
 - ~~训练集音高识别支持crepe：已经被RMVPE取代，不需要~~
 - ~~多进程harvest推理：已经被RMVPE取代，不需要~~
-- ~~crepe的精度支持和RVC-config同步：已经被RMVPE取代，不需要。支持这个还要同步torchcrepe的库，麻烦~~
+- ~~crepe的精度支持和VCW-config同步：已经被RMVPE取代，不需要。支持这个还要同步torchcrepe的库，麻烦~~
 - 对接F0编辑器
   
   

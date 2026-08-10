@@ -1,12 +1,12 @@
-# RVC Realtime VST 开发说明
+# VCW Realtime VST 开发说明
 
 [简体中文](./README.md) | [English](./README.en.md)
 
-RVC Realtime VST 是面向 Windows x64 的实时变声插件工程，可从同一套源码构建 VST2 和 VST3。
+VCW Realtime VST 是面向 Windows x64 的实时变声插件工程，可从同一套源码构建 VST2 和 VST3。
 
-插件本体使用 C++17 和 iPlug2。模型加载与 RVC 推理由独立的 Python worker 进程执行，宿主音频线程只负责音频缓冲、混音和无锁队列操作。
+插件本体使用 C++17 和 iPlug2。模型加载与 VCW 推理由独立的 Python worker 进程执行，宿主音频线程只负责音频缓冲、混音和无锁队列操作。
 
-本目录不包含 Python runtime、RVC 模型、索引、训练数据或完整 RVC 整合包。编译插件不需要这些运行时文件。
+本目录不包含 Python runtime、VCW 模型、索引、训练数据或完整 VCW 整合包。编译插件不需要这些运行时文件。
 
 ## 当前支持范围
 
@@ -15,7 +15,7 @@ RVC Realtime VST 是面向 Windows x64 的实时变声插件工程，可从同�
 - 64 位 VST3 bundle
 - Mono 输入输出、Mono 到 Stereo、Stereo 输入输出
 - RMVPE、FCPE、PM 三种 F0 方法
-- 外部 64 位 RVC Python runtime
+- 外部 64 位 VCW Python runtime
 - `.pth` 模型和可选 `.index` 文件
 - Studio One 等 64 位 VST 宿主
 
@@ -30,7 +30,7 @@ flowchart LR
     InputRing --> Bridge["WorkerClient 管理线程"]
     Bridge <--> IPC["共享内存 + Windows Event"]
     IPC <--> Worker["独立 Python worker"]
-    Worker --> RVC["外部 RVC 源码、模型与 CUDA 环境"]
+    Worker --> VCW["外部 VCW 源码、模型与 CUDA 环境"]
     Worker --> IPC
     Bridge --> OutputRing["输出无锁环形缓冲"]
     OutputRing --> Plugin
@@ -39,7 +39,7 @@ flowchart LR
 
 插件通过 `CreateProcessW` 启动整合包中的 `runtime\python.exe`，并执行插件自带的 `worker\rvc_worker.py`。音频数据通过 Windows 共享内存传递，请求和响应通过命名 Event 同步，不使用网络端口、HTTP 或普通 stdin/stdout 管道传输音频。
 
-Python worker 从用户选择的 RVC 根目录导入：
+Python worker 从用户选择的 VCW 根目录导入：
 
 ```text
 configs/config.py
@@ -54,13 +54,13 @@ RVCRealtimeVST/
 ├─ CMakeLists.txt
 ├─ config.h
 ├─ src/                         插件、界面、状态和 IPC 源码
-├─ worker/rvc_worker.py         Python/RVC 推理桥接
+├─ worker/rvc_worker.py         Python/VCW 推理桥接
 ├─ resources/                   Windows 资源、字体和用户安装说明
 ├─ scripts/
 │  ├─ prepare-dependencies.ps1  校验并准备锁定依赖
 │  ├─ build.ps1                 构建并生成发布 ZIP
 │  ├─ test-all.ps1              VST2、VST3 和可选 CUDA 测试
-│  └─ test-worker.ps1           真实 RVC worker 测试
+│  └─ test-worker.ps1           真实 VCW worker 测试
 ├─ tools/                       VST2 和 worker smoke test 源码
 └─ third_party/                 git submodule、兼容头和许可证
 ```
@@ -91,7 +91,7 @@ CMake 3.26.6
 编译插件本体不需要：
 
 - 系统 Python
-- RVC 整合包
+- VCW 整合包
 - PyTorch
 - CUDA Toolkit
 - NVIDIA GPU
@@ -106,7 +106,7 @@ iPlug2 的首次 CMake 配置会获取 WIL 和 WebView2 SDK，因此首次构建
 ```powershell
 git config --global core.longpaths true
 git clone --recursive https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI.git
-cd Retrieval-based-Voice-Conversion-WebUI\RVCRealtimeVST
+cd VCW\RVCRealtimeVST
 ```
 
 已有普通 clone 时执行：
@@ -148,7 +148,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1
 主要输出：
 
 ```text
-dist/RVC Realtime.dll
+dist/VCW Realtime.dll
 dist/RVCRealtime.resources/worker/rvc_worker.py
 dist/RVCRealtime.vst3/
 dist/RVCRealtime-Win64.zip
@@ -156,7 +156,7 @@ dist/RVCRealtime-Win64.zip
 
 ## 测试
 
-### 不使用 RVC runtime 的格式测试
+### 不使用 VCW runtime 的格式测试
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\test-all.ps1 -SkipWorker
@@ -164,11 +164,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-all.ps1 -SkipWorker
 
 该命令执行 VST2 动态加载和音频处理 smoke test，并构建和运行 Steinberg VST3 Validator。
 
-### 真实 RVC worker 测试
+### 真实 VCW worker 测试
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\test-worker.ps1 `
-  -RvcRoot "D:\path\to\RVC-package" `
+  -RvcRoot "D:\path\to\VCW-package" `
   -Model "D:\path\to\model.pth" `
   -Index "D:\path\to\model.index"
 ```
@@ -179,14 +179,14 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-worker.ps1 `
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\test-all.ps1 `
-  -RvcRoot "D:\path\to\RVC-package" `
+  -RvcRoot "D:\path\to\VCW-package" `
   -Model "D:\path\to\model.pth" `
   -Index "D:\path\to\model.index"
 ```
 
-## RVC 运行环境要求
+## VCW 运行环境要求
 
-插件运行时需要用户另外准备包含源码和 Python 环境的 RVC 整合包。至少需要：
+插件运行时需要用户另外准备包含源码和 Python 环境的 VCW 整合包。至少需要：
 
 ```text
 runtime/python.exe             64 位 Python
@@ -223,7 +223,7 @@ VST3 从 bundle 内读取：
 RVCRealtime.vst3/Contents/Resources/worker/rvc_worker.py
 ```
 
-源码目录、开发机 RVC 路径和测试模型路径不会编译进发布插件。
+源码目录、开发机 VCW 路径和测试模型路径不会编译进发布插件。
 
 ## 用户配置与日志
 
@@ -267,7 +267,7 @@ git submodule update --init --recursive
 git config --global core.longpaths true
 ```
 
-也可把仓库 clone 到更短的路径，例如 `D:\src\RVC`。
+也可把仓库 clone 到更短的路径，例如 `D:\src\VCW`。
 
 ### 插件停留在 LOADING MODEL 或显示 ERROR
 
@@ -278,7 +278,7 @@ git config --global core.longpaths true
 %TEMP%\RVCRealtime\logs\instance_*.json.log
 ```
 
-同时确认 RVC 根目录、64 位 Python、模型、索引以及 NVIDIA 驱动均有效。
+同时确认 VCW 根目录、64 位 Python、模型、索引以及 NVIDIA 驱动均有效。
 
 ### 修改后如何重新构建
 

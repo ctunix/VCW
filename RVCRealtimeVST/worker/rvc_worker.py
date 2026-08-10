@@ -1,4 +1,4 @@
-"""RVC inference worker for the RVC Realtime VST2/VST3 plugin."""
+"""VCW inference worker for the VCW Realtime VST2/VST3 plugin."""
 
 from __future__ import annotations
 
@@ -262,11 +262,11 @@ def run(args: argparse.Namespace) -> int:
         request_event = WinEvent(args.request)
         response_event = WinEvent(args.response)
         if read_value(shared, 0, "I") != MAGIC or read_value(shared, 4, "I") != PROTOCOL_VERSION:
-            raise RuntimeError("RVC VST protocol mismatch")
+            raise RuntimeError("VCW VST protocol mismatch")
         write_status(shared, STATUS_LOADING, "Loading Python and CUDA")
         with open(args.config, "r", encoding="utf-8") as handle:
             cfg = json.load(handle)
-        # RVC's Config parses process-wide CLI flags intended for its WebUI.
+        # VCW's Config parses process-wide CLI flags intended for its WebUI.
         sys.argv = [sys.argv[0]]
         engine = RVCStreamEngine(cfg)
         write_status(shared, STATUS_LOADING, "Prewarming CUDA and F0")

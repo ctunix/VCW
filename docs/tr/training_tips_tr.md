@@ -1,4 +1,4 @@
-## RVC Eğitimi için Talimatlar ve İpuçları
+## VCW Eğitimi için Talimatlar ve İpuçları
 ======================================
 Bu TALİMAT, veri eğitiminin nasıl yapıldığını açıklamaktadır.
 
@@ -44,7 +44,7 @@ Derin öğrenmede, veri kümesi bölmeye ve öğrenmeye adım adım devam eder. 
 Bu nedenle, öğrenme zamanı adım başına öğrenme zamanı x (veri kümesindeki veri sayısı / batch boyutu) x dönem sayısıdır. Genel olarak, batch boyutu ne kadar büyükse, öğrenme daha istikrarlı hale gelir (adım başına öğrenme süresi ÷ batch boyutu) küçülür, ancak daha fazla GPU belleği kullanır. GPU RAM'ı nvidia-smi komutu ile kontrol edilebilir. Çalışma ortamının makinesine göre batch boyutunu mümkün olduğunca artırarak öğrenme süresini kısa sürede yapabilirsiniz.
 
 ### Önceden Eğitilmiş Modeli Belirtme
-RVC, modeli 0'dan değil önceden eğitilmiş ağırlıklardan başlatarak eğitir, bu nedenle küçük bir veri kümesi ile eğitilebilir.
+VCW, modeli 0'dan değil önceden eğitilmiş ağırlıklardan başlatarak eğitir, bu nedenle küçük bir veri kümesi ile eğitilebilir.
 
 Varsayılan olarak
 
@@ -54,7 +54,7 @@ Varsayılan olarak
 Öğrenirken model parametreleri her save_every_epoch için `logs/your-experiment-name/G_{}.pth` ve `logs/your-experiment-name/D_{}.pth` olarak kaydedilir, ancak bu yolu belirterek öğrenmeye başlayabilirsiniz. Farklı bir deneyde öğrenilen model ağırlıklarından öğrenmeye yeniden başlayabilir veya eğitimi başlatabilirsiniz.
 
 ### Öğrenme İndeksi
-RVC, eğitim sırasında kullanılan HuBERT özellik değerlerini kaydeder ve çıkarım sırasında, öğrenme sırasında kullanılan özellik değerlerine benzer özellik değerlerini arayarak çıkarım yapar. Bu aramayı yüksek hızda gerçekleştirebilmek için indeks öğrenilir.
+VCW, eğitim sırasında kullanılan HuBERT özellik değerlerini kaydeder ve çıkarım sırasında, öğrenme sırasında kullanılan özellik değerlerine benzer özellik değerlerini arayarak çıkarım yapar. Bu aramayı yüksek hızda gerçekleştirebilmek için indeks öğrenilir.
 İndeks öğrenimi için yaklaş
 
 ık komşuluk arama kütüphanesi faiss kullanılır. `/logs/your-experiment-name/3_feature256`'daki özellik değerini okur ve indeksi öğrenmek için kullanır, `logs/your-experiment-name/add_XXX.index` olarak kaydedilir.

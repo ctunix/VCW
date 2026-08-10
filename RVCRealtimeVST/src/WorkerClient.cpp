@@ -2,7 +2,7 @@
 #include "config.h"
 
 #if !defined(_WIN32)
-#error RVC Realtime worker bridge currently targets Windows.
+#error VCW Realtime worker bridge currently targets Windows.
 #endif
 
 #include <windows.h>
@@ -438,7 +438,7 @@ bool WorkerClient::launchWorker(const Paths& paths, const uint64_t)
     }
     ipc_->process = process.hProcess;
     ipc_->processThread = process.hThread;
-    setStatus(kStatusLoading, "Loading RVC model");
+    setStatus(kStatusLoading, "Loading VCW model");
     return true;
 }
 
@@ -486,7 +486,7 @@ bool WorkerClient::processOneBlock()
     const DWORD timeout = std::max<DWORD>(5000, static_cast<DWORD>(parameters_[kParamBlockMs].load() * 8.0f));
     const DWORD wait = WaitForSingleObject(ipc_->responseEvent, timeout);
     if (wait != WAIT_OBJECT_0) {
-        setStatus(kStatusError, "RVC inference timed out");
+        setStatus(kStatusError, "VCW inference timed out");
         return false;
     }
     if (readAt<uint32_t>(ipc_->view, 16) != sequence) {
@@ -526,7 +526,7 @@ void WorkerClient::threadMain()
             stopWorker();
             const Paths paths = pathsSnapshot();
             if (paths.model.empty() || paths.rvcRoot.empty() || paths.python.empty()) {
-                setStatus(kStatusError, "Select a model and RVC runtime");
+                setStatus(kStatusError, "Select a model and VCW runtime");
                 std::this_thread::sleep_for(std::chrono::milliseconds(200));
                 continue;
             }

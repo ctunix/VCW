@@ -1,7 +1,7 @@
 #pragma once
 
-#define PLUG_NAME "RVC Realtime"
-#define PLUG_MFR "RVC Project"
+#define PLUG_NAME "VCW Realtime"
+#define PLUG_MFR "VCW Project"
 #define PLUG_VERSION_HEX 0x00010000
 #define PLUG_VERSION_STR "0.1.0"
 #define PLUG_UNIQUE_ID 'Rvcr'

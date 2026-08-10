@@ -190,7 +190,7 @@ RVCRealtime::RVCRealtime(const InstanceInfo& info)
 
     // Header
     graphics->AttachControl(new IPanelControl(bounds.GetFromTop(86.f), kHeaderColor));
-    graphics->AttachControl(new ITextControl(IRECT(28, 10, 420, 52), "RVC REALTIME",
+    graphics->AttachControl(new ITextControl(IRECT(28, 10, 420, 52), "VCW REALTIME",
                                               IText(28.f, IColor(255, 23, 25, 27), "Roboto-Regular", EAlign::Near)));
     graphics->AttachControl(new ITextControl(IRECT(30, 50, 420, 76), "VOICE CONVERSION / CUDA BRIDGE",
                                               IText(12.f, IColor(255, 85, 89, 90), "Roboto-Regular", EAlign::Near)));
@@ -225,11 +225,11 @@ RVCRealtime::RVCRealtime(const InstanceInfo& info)
       graphics->AttachControl(new IVButtonControl(IRECT(700, y, 750, y + rowHeight), action, "...",
                                                   style.WithLabelText(IText(18.f, kText, "Roboto-Regular", EAlign::Center)), true));
     };
-    attachFileRow(100.f, "RVC ROOT", kCtrlRvcRoot, PathRow::RvcRoot);
+  attachFileRow(100.f, "VCW ROOT", kCtrlRvcRoot, PathRow::RvcRoot);
     attachFileRow(142.f, "PYTHON", kCtrlPythonPath, PathRow::Python);
     attachFileRow(184.f, "MODEL", kCtrlModelName, PathRow::Model);
     attachFileRow(226.f, "INDEX", kCtrlIndexName, PathRow::Index);
-    graphics->AttachControl(new ITextControl(IRECT(96, 266, 750, 290), "Select RVC root and Python runtime",
+      graphics->AttachControl(new ITextControl(IRECT(96, 266, 750, 290), "Select VCW root and Python runtime",
                                               IText(12.f, kAmber, "Roboto-Regular", EAlign::Near)), kCtrlStatusDetail);
 
     // 3x3 slider grid
@@ -602,14 +602,14 @@ bool RVCRealtime::ValidateConfiguration(std::string& error) const
     model = mModelPath.Get();
     index = mIndexPath.Get();
   }
-  if (root.empty()) { error = "Select the RVC package root."; return false; }
-  if (!PathIsDirectory(root)) { error = "RVC root folder does not exist."; return false; }
-  if (!PathIsFile(JoinPath(root, "infer\\rtrvc.py"))) { error = "RVC source not found: infer\\rtrvc.py."; return false; }
-  if (!PathIsFile(JoinPath(root, "configs\\config.py"))) { error = "RVC source not found: configs\\config.py."; return false; }
+  if (root.empty()) { error = "Select the VCW package root."; return false; }
+  if (!PathIsDirectory(root)) { error = "VCW root folder does not exist."; return false; }
+  if (!PathIsFile(JoinPath(root, "infer\\rtrvc.py"))) { error = "VCW source not found: infer\\rtrvc.py."; return false; }
+  if (!PathIsFile(JoinPath(root, "configs\\config.py"))) { error = "VCW source not found: configs\\config.py."; return false; }
   if (python.empty()) { error = "runtime\\python.exe not found; select Python manually."; return false; }
   if (!PathIsFile(python)) { error = "Selected Python executable does not exist."; return false; }
   if (!Is64BitExecutable(python)) { error = "Selected Python must be a 64-bit executable."; return false; }
-  if (model.empty()) { error = "Select an RVC .pth model."; return false; }
+  if (model.empty()) { error = "Select a VCW .pth model."; return false; }
   if (!PathIsFile(model)) { error = "Selected model file does not exist."; return false; }
   if (!index.empty() && !PathIsFile(index)) { error = "Selected index file does not exist."; return false; }
   error.clear();
