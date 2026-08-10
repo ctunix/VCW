@@ -52,7 +52,7 @@ from tools.pymss_webui import (
 )
 from tools.file_io import read_text
 from tools.process_utils import kill_process_tree
-from tools.web_auth import add_password_login
+from tools.web_auth import create_protected_app
 from tools.multispeaker import (
     ManifestError,
     build_manifest_from_root,
@@ -148,8 +148,6 @@ def launch_webui_with_port_fallback(app, config):
     """Launch Gradio, increasing the requested port until startup succeeds."""
     next_port = config.listen_port
     queued_app = app.queue(concurrency_count=511, max_size=1022)
-    if config.auth:
-        add_password_login(app, config.auth_password, config.cloudflare_tunnel)
     while True:
         config.listen_port = find_available_port(next_port)
         if config.listen_port != next_port:
@@ -161,12 +159,30 @@ def launch_webui_with_port_fallback(app, config):
         try:
             if config.cloudflare_tunnel:
                 start_cloudflare_quick_tunnel(config.listen_port)
-            queued_app.launch(
-                server_name="0.0.0.0",
-                inbrowser=not config.noautoopen,
-                server_port=config.listen_port,
-                quiet=True,
-            )
+            if config.auth:
+                import uvicorn
+
+                protected_app = create_protected_app(
+                    queued_app,
+                    config.auth_password,
+                    secure_cookie=(
+                        config.cloudflare_tunnel
+                        or os.environ.get("VCW_SECURE_COOKIE") == "1"
+                    ),
+                )
+                uvicorn.run(
+                    protected_app,
+                    host="0.0.0.0",
+                    port=config.listen_port,
+                    log_level="warning",
+                )
+            else:
+                queued_app.launch(
+                    server_name="0.0.0.0",
+                    inbrowser=not config.noautoopen,
+                    server_port=config.listen_port,
+                    quiet=True,
+                )
             return config.listen_port
         except OSError as error:
             if not is_gradio_port_in_use_error(error, config.listen_port):
@@ -2376,54 +2392,45 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                     )
         with gr.TabItem("VCW Workflow"):
             gr.Markdown(
-                '<span class="vcw-step">EZ MODE · ZIP → TRAIN → EXPORT</span>\n\n'
-                "Upload one ZIP of WAV files, send it straight to the Training tab, run VCW's one-key training, then download one package ZIP."
+                '<span class="vcw-step">START HERE · NEW VOICE</span>\n\n'
+                "**Upload → Train → Export.** This page handles your files; the Training tab runs the model jobs."
             )
-            with gr.Group(elem_id="vcw-workflow-upload"):
-                gr.Markdown("### 1. Upload WAV ZIP")
-                with gr.Row():
+            with gr.Row(equal_height=False):
+                with gr.Column(scale=2):
+                    with gr.Group(elem_id="vcw-workflow-upload"):
+                        gr.Markdown("### 1 · Add training audio\nUpload one ZIP containing `.wav` files. Folders inside the ZIP are fine.")
+                        workflow_zip = gr.File(
+                            label="Training WAV ZIP", file_types=[".zip"], type="file", interactive=True
+                        )
+                        workflow_import = gr.Button("Import training audio", variant="primary")
+                        workflow_import_status = gr.Textbox(label="Import result", interactive=False)
+                        workflow_dataset_path = gr.Textbox(
+                            label="Prepared dataset folder", interactive=False
+                        )
+                with gr.Column(scale=1):
+                    with gr.Group(elem_id="vcw-workflow-model"):
+                        gr.Markdown("### Project")
+                        gr.Markdown("Use the same name while training and exporting.")
                     workflow_project = gr.Textbox(
                         label="Project name", value="my_voice", interactive=True
                     )
-                    workflow_zip = gr.File(
-                        label="WAV ZIP", file_types=[".zip"], type="file", interactive=True
-                    )
-                workflow_import = gr.Button("Import WAV ZIP", variant="primary")
-                workflow_import_status = gr.Textbox(label="Import status", interactive=False)
-                workflow_dataset_path = gr.Textbox(
-                    label="Training folder", interactive=False
-                )
-                workflow_import.click(
-                    import_wav_zip,
-                    [workflow_zip, workflow_project],
-                    [workflow_import_status, workflow_dataset_path],
-                    api_name="workflow_import_zip",
-                )
-            with gr.Group(elem_id="vcw-workflow-model"):
-                gr.Markdown("### 2. Download trained package")
-                gr.Markdown(
-                    "To use a previously trained VCW package for inference, upload it here. Its `.pth` and `.index` files are added to the model list."
-                )
-                workflow_model_zip = gr.File(
-                    label="VCW model package ZIP", file_types=[".zip"], type="file", interactive=True
-                )
-                workflow_model_import = gr.Button("Import model package", variant="secondary")
-                workflow_model_status = gr.Textbox(label="Model import status", interactive=False)
-                workflow_model_import.click(
-                    import_model_package,
-                    [workflow_model_zip],
-                    [workflow_model_status, sid0],
-                    api_name="workflow_import_model",
-                )
+                    gr.Markdown("Next: open **Training**, click **Use uploaded ZIP**, then run the numbered training stages.")
+            workflow_import.click(
+                import_wav_zip,
+                [workflow_zip, workflow_project],
+                [workflow_import_status, workflow_dataset_path],
+                api_name="workflow_import_zip",
+            )
             with gr.Group(elem_id="vcw-workflow-export"):
-                gr.Markdown("### 3. Download trained package")
+                gr.Markdown("### 2 · Export the trained voice")
                 gr.Markdown(
-                    "After training has produced a model with the same project name, create a ZIP containing the model, any available index, and optionally the original WAVs."
+                    "After Training finishes, package the model, index, and optionally its source WAV files into one download."
                 )
-                workflow_include_wavs = gr.Checkbox(
-                    label="Include uploaded WAVs", value=True, interactive=True
-                )
-                workflow_export = gr.Button("Create download ZIP", variant="primary")
+                with gr.Row():
+                    workflow_include_wavs = gr.Checkbox(
+                        label="Include training WAVs", value=True, interactive=True
+                    )
+                    workflow_export = gr.Button("Build package ZIP", variant="primary")
                 workflow_export_status = gr.Textbox(label="Export status", interactive=False)
                 workflow_download = gr.File(label="Download VCW package", interactive=False)
                 workflow_export.click(
@@ -2431,6 +2438,22 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                     [workflow_project, workflow_include_wavs],
                     [workflow_export_status, workflow_download],
                     api_name="workflow_export_zip",
+                )
+            with gr.Group(elem_id="vcw-workflow-model"):
+                gr.Markdown("### Use an existing voice package")
+                gr.Markdown("Upload a previous VCW package, then select its model in **Model Inference**.")
+                with gr.Row():
+                    workflow_model_zip = gr.File(
+                        label="VCW package ZIP", file_types=[".zip"], type="file", interactive=True
+                    )
+                    with gr.Column():
+                        workflow_model_import = gr.Button("Import model package", variant="secondary")
+                        workflow_model_status = gr.Textbox(label="Import result", interactive=False)
+                workflow_model_import.click(
+                    import_model_package,
+                    [workflow_model_zip],
+                    [workflow_model_status, sid0],
+                    api_name="workflow_import_model",
                 )
 
         with gr.TabItem(i18n("训练")):
@@ -3104,8 +3127,6 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                 gr.Markdown(traceback.format_exc())
 
 if config.iscolab:
-    if config.auth:
-        add_password_login(app, config.auth_password, secure_cookie=True)
     app.queue(concurrency_count=511, max_size=1022).launch(share=True)
 else:
     launch_webui_with_port_fallback(app, config)

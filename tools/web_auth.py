@@ -5,8 +5,9 @@ from __future__ import annotations
 import hmac
 import secrets
 
-from fastapi import Request
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+import gradio as gr
 
 
 SESSION_COOKIE = "vcw_session"
@@ -61,9 +62,8 @@ class PasswordGate:
         await HTMLResponse(_login_page(), status_code=401)(scope, receive, send)
 
 
-def add_password_login(gradio_blocks, password: str, secure_cookie: bool) -> None:
-    """Install VCW's Side-Step-inspired password-only login on a Blocks app."""
-    fastapi_app = gradio_blocks.app
+def add_password_login(fastapi_app, password: str, secure_cookie: bool) -> None:
+    """Install VCW's password-only login on a FastAPI app."""
     session_token = secrets.token_urlsafe(32)
 
     @fastapi_app.post(LOGIN_PATH)
@@ -84,3 +84,15 @@ def add_password_login(gradio_blocks, password: str, secure_cookie: bool) -> Non
         return response
 
     fastapi_app.add_middleware(PasswordGate, session_token=session_token)
+
+
+def create_protected_app(gradio_blocks, password: str, secure_cookie: bool):
+    """Mount Gradio behind one protected parent app.
+
+    Gradio 3.14 creates a fresh FastAPI app inside ``Blocks.launch()``. Mounting
+    it explicitly ensures the login gate protects the app that is actually
+    served, including queue and upload routes.
+    """
+    fastapi_app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    add_password_login(fastapi_app, password, secure_cookie)
+    return gr.mount_gradio_app(fastapi_app, gradio_blocks, path="/")
