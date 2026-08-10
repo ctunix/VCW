@@ -326,7 +326,30 @@ def vc_single_with_speaker(slider_value, dropdown_value, *args):
 
 
 def vc_multi_with_speaker(slider_value, dropdown_value, *args):
-    yield from vc.vc_multi(selected_speaker_id(slider_value, dropdown_value), *args)
+    output_root = pathlib.Path(str(args[1] or "").strip().strip('"'))
+    started_at = time.time()
+    last_status = ""
+    for status in vc.vc_multi(selected_speaker_id(slider_value, dropdown_value), *args):
+        last_status = status
+        yield status, None
+    produced = []
+    if output_root.is_dir():
+        produced = [
+            path
+            for path in output_root.iterdir()
+            if path.is_file()
+            and path.suffix.lower() in {".wav", ".flac", ".mp3", ".m4a"}
+            and path.stat().st_mtime >= started_at - 1
+        ]
+    if not produced:
+        yield last_status, None
+        return
+    WORKFLOW_EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    package = WORKFLOW_EXPORT_DIR / ("VCW_inference_%s.zip" % int(started_at))
+    with ZipFile(package, "w", ZIP_DEFLATED) as archive:
+        for result in sorted(produced):
+            archive.write(result, result.name)
+    yield last_status, str(package)
 
 
 sr_dict = {
@@ -334,6 +357,37 @@ sr_dict = {
     "40k": 40000,
     "48k": 48000,
 }
+
+EXPERIMENT_NAME_RE = re.compile(r"[A-Za-z0-9_-]{1,80}")
+GPU_LIST_RE = re.compile(r"(?:\d+(?:-\d+)*)?")
+
+
+def validate_experiment_name(name):
+    name = str(name or "").strip()
+    if not EXPERIMENT_NAME_RE.fullmatch(name):
+        raise ValueError(i18n("实验名只能包含1到80个字母、数字、下划线或连字符"))
+    return name
+
+
+def validate_gpu_list(value, label):
+    value = str(value or "").strip()
+    if not GPU_LIST_RE.fullmatch(value):
+        raise ValueError(i18n("%s只能使用以连字符分隔的GPU编号，例如0或0-1") % label)
+    return value
+
+
+def validate_training_path(
+    value, label, must_be_directory=False, must_be_file=False
+):
+    value = str(value or "").strip().strip('"')
+    if not value or any(character in value for character in ('"', "\n", "\r")):
+        raise ValueError(i18n("%s不是有效路径") % label)
+    path = pathlib.Path(value).expanduser()
+    if must_be_directory and not path.is_dir():
+        raise ValueError(i18n("%s不存在或不是文件夹：%s") % (label, path))
+    if must_be_file and not path.is_file():
+        raise ValueError(i18n("%s不存在或不是文件：%s") % (label, path))
+    return str(path)
 
 MULTISPEAKER_PAGE_SIZE = 10
 MULTISPEAKER_MAX_ROWS = 110
@@ -905,6 +959,8 @@ def wait_train_processes(
 def run_preprocess_dataset(
     trainset_dir, exp_dir, sr, n_p, state, format_output=True, training_mode=None
 ):
+    exp_dir = validate_experiment_name(exp_dir)
+    trainset_dir = validate_training_path(trainset_dir, "训练文件夹", True)
     sr = sr_dict[sr]
     os.makedirs("%s/logs/%s" % (now_dir, exp_dir), exist_ok=True)
     if is_multispeaker_mode(training_mode):
@@ -1005,6 +1061,9 @@ def run_extract_f0_feature(
     state,
     format_output=True,
 ):
+    exp_dir = validate_experiment_name(exp_dir)
+    gpus = validate_gpu_list(gpus, "HuBERT GPU")
+    gpus_rmvpe = validate_gpu_list(gpus_rmvpe, "RMVPE GPU")
     if f0method not in ("pm", "rmvpe"):
         raise ValueError(i18n("仅支持pm和rmvpe音高提取算法"))
     log_path = "%s/logs/%s/extract_f0_feature.log" % (now_dir, exp_dir)
@@ -1219,6 +1278,16 @@ def run_train_model(
     format_output=True,
     training_mode=None,
 ):
+    exp_dir1 = validate_experiment_name(exp_dir1)
+    gpus16 = validate_gpu_list(gpus16, "训练GPU")
+    if pretrained_G14:
+        pretrained_G14 = validate_training_path(
+            pretrained_G14, "生成器预训练模型", must_be_file=True
+        )
+    if pretrained_D15:
+        pretrained_D15 = validate_training_path(
+            pretrained_D15, "判别器预训练模型", must_be_file=True
+        )
     # 生成filelist
     exp_dir = "%s/logs/%s" % (now_dir, exp_dir1)
     os.makedirs(exp_dir, exist_ok=True)
@@ -1370,8 +1439,8 @@ def run_train_model(
                 gpus16,
                 total_epoch11,
                 save_epoch10,
-                "-pg %s" % pretrained_G14 if pretrained_G14 != "" else "",
-                "-pd %s" % pretrained_D15 if pretrained_D15 != "" else "",
+                '-pg "%s"' % pretrained_G14 if pretrained_G14 != "" else "",
+                '-pd "%s"' % pretrained_D15 if pretrained_D15 != "" else "",
                 1 if if_save_latest13 == i18n("是") else 0,
                 1 if if_cache_gpu17 == i18n("是") else 0,
                 1 if if_save_every_weights18 == i18n("是") else 0,
@@ -1389,8 +1458,8 @@ def run_train_model(
                 batch_size12,
                 total_epoch11,
                 save_epoch10,
-                "-pg %s" % pretrained_G14 if pretrained_G14 != "" else "",
-                "-pd %s" % pretrained_D15 if pretrained_D15 != "" else "",
+                '-pg "%s"' % pretrained_G14 if pretrained_G14 != "" else "",
+                '-pd "%s"' % pretrained_D15 if pretrained_D15 != "" else "",
                 1 if if_save_latest13 == i18n("是") else 0,
                 1 if if_cache_gpu17 == i18n("是") else 0,
                 1 if if_save_every_weights18 == i18n("是") else 0,
@@ -1398,6 +1467,10 @@ def run_train_model(
             )
         )
     logger.info("%s: %s", i18n("执行命令"), cmd)
+    final_model = os.path.join(weight_root, "%s.pth" % exp_dir1)
+    previous_model_mtime = (
+        os.stat(final_model).st_mtime_ns if os.path.isfile(final_model) else None
+    )
     process = start_train_process(state, cmd)
     yield from wait_train_processes(
         state,
@@ -1407,6 +1480,18 @@ def run_train_model(
         format_output,
         True,
     )
+    if not train_task_stopped(state):
+        if not os.path.isfile(final_model):
+            raise RuntimeError(
+                i18n("训练进程结束，但没有生成最终模型：%s") % final_model
+            )
+        if (
+            previous_model_mtime is not None
+            and os.stat(final_model).st_mtime_ns == previous_model_mtime
+        ):
+            raise RuntimeError(
+                i18n("训练进程结束，但最终模型没有被更新：%s") % final_model
+            )
 
 
 def click_train(
@@ -1498,6 +1583,7 @@ def stop_train_model():
 def run_train_index(
     exp_dir1, version19, state, format_output=True, training_mode=None
 ):
+    exp_dir1 = validate_experiment_name(exp_dir1)
     exp_dir = os.path.join(now_dir, "logs", exp_dir1)
     os.makedirs(exp_dir, exist_ok=True)
     log_path = os.path.join(exp_dir, "train_index.log")
@@ -1525,6 +1611,14 @@ def run_train_index(
     yield from wait_train_processes(
         state, [process], log_path, "索引训练", format_output
     )
+    if not train_task_stopped(state):
+        indices = [
+            name
+            for name in os.listdir(exp_dir)
+            if name.startswith("added_") and name.endswith(".index")
+        ]
+        if not indices:
+            raise RuntimeError(i18n("索引训练结束，但没有生成可用的added索引"))
 
 
 def train_index(exp_dir1, version19, training_mode=None):
@@ -1913,13 +2007,23 @@ def change_f0_method(f0method8):
 
 WORKFLOW_UPLOAD_DIR = pathlib.Path(now_dir) / "logs"
 WORKFLOW_EXPORT_DIR = pathlib.Path(now_dir) / "exports"
-WORKFLOW_NAME_RE = re.compile(r"[A-Za-z0-9_-]{1,80}")
+
+
+def require_training_idle(action):
+    with TRAIN_TASK_LOCK:
+        running_task = TRAIN_TASK["name"] if TRAIN_TASK else None
+    if running_task:
+        raise gr.Error(
+            "%s is unavailable while %s is running. Stop training first."
+            % (action, i18n(running_task))
+        )
 
 
 def workflow_experiment_dir(name):
-    name = str(name or "").strip()
-    if not WORKFLOW_NAME_RE.fullmatch(name):
-        raise gr.Error("Use 1-80 letters, numbers, underscores, or hyphens for the project name.")
+    try:
+        name = validate_experiment_name(name)
+    except ValueError as error:
+        raise gr.Error(str(error)) from error
     return name, WORKFLOW_UPLOAD_DIR / name / "uploaded_wavs"
 
 
@@ -1935,12 +2039,17 @@ def gradio_upload_path(uploaded_file):
 
 def import_wav_zip(uploaded_zip, project_name):
     """Safely flatten WAVs from an uploaded ZIP into a training-ready folder."""
+    require_training_idle("Dataset import")
     if not uploaded_zip:
         raise gr.Error("Upload one ZIP containing WAV files first.")
     archive_path = gradio_upload_path(uploaded_zip)
     if archive_path.suffix.lower() != ".zip":
         raise gr.Error("Upload a .zip file containing WAV files.")
     name, destination = workflow_experiment_dir(project_name)
+    experiment = destination.parent
+    staging = WORKFLOW_UPLOAD_DIR / (
+        ".%s_importing_%s_%s" % (name, os.getpid(), time.time_ns())
+    )
     try:
         with ZipFile(archive_path) as archive:
             wav_entries = [
@@ -1950,10 +2059,10 @@ def import_wav_zip(uploaded_zip, project_name):
             total_size = sum(item.file_size for item in wav_entries)
             if not wav_entries:
                 raise gr.Error("This ZIP contains no WAV files.")
-            if len(wav_entries) > 10000 or total_size > 20 * 1024**3:
+            if len(wav_entries) > 10000 or total_size > 8 * 1024**3:
                 raise gr.Error("ZIP is too large for VCW's upload workflow.")
-            shutil.rmtree(destination, ignore_errors=True)
-            destination.mkdir(parents=True, exist_ok=True)
+            shutil.rmtree(staging, ignore_errors=True)
+            staging.mkdir(parents=True, exist_ok=True)
             used_names = set()
             for number, item in enumerate(wav_entries, 1):
                 base = re.sub(r"[^A-Za-z0-9_.-]+", "_", pathlib.PurePosixPath(item.filename).stem)
@@ -1962,27 +2071,41 @@ def import_wav_zip(uploaded_zip, project_name):
                 while filename.lower() in used_names:
                     filename = f"{number:04d}_{base}_{len(used_names)}.wav"
                 used_names.add(filename.lower())
-                with archive.open(item) as source, open(destination / filename, "wb") as target:
+                with archive.open(item) as source, open(staging / filename, "wb") as target:
                     shutil.copyfileobj(source, target)
+        shutil.rmtree(experiment, ignore_errors=True)
+        for old_index in pathlib.Path(outside_index_root).glob("%s_*.index" % name):
+            old_index.unlink(missing_ok=True)
+        experiment.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(staging), str(destination))
     except gr.Error:
+        shutil.rmtree(staging, ignore_errors=True)
         raise
     except Exception as error:
+        shutil.rmtree(staging, ignore_errors=True)
         raise gr.Error("Could not read the ZIP: %s" % error) from error
     return (
-        "Imported %s WAV file(s). Use this folder in the Training tab, then run preprocessing."
+        "Imported %s WAV file(s) into a fresh project. Training fields are ready."
         % len(wav_entries),
         str(destination),
     )
 
 
+def import_wav_zip_for_training(uploaded_zip, project_name):
+    status, dataset_path = import_wav_zip(uploaded_zip, project_name)
+    name, _ = workflow_experiment_dir(project_name)
+    return status, dataset_path, gr.update(value=dataset_path), gr.update(value=name)
+
+
 def export_workflow_package(project_name, include_uploaded_wavs):
     """Bundle model/index artifacts and, optionally, source WAVs for download."""
+    require_training_idle("Package export")
     name, source_wavs = workflow_experiment_dir(project_name)
     experiment = pathlib.Path(now_dir) / "logs" / name
     model = pathlib.Path(weight_root) / f"{name}.pth"
-    indices = list(experiment.glob("*.index")) + list(
-        pathlib.Path(outside_index_root).glob(f"{name}_*.index")
-    )
+    indices = list(experiment.glob("added_*.index"))
+    if not indices:
+        indices = list(pathlib.Path(outside_index_root).glob(f"{name}_*added_*.index"))
     if not model.is_file():
         raise gr.Error("No exported model was found at %s." % model)
     WORKFLOW_EXPORT_DIR.mkdir(parents=True, exist_ok=True)
@@ -1996,6 +2119,10 @@ def export_workflow_package(project_name, include_uploaded_wavs):
         if include_uploaded_wavs and source_wavs.is_dir():
             for wav in sorted(source_wavs.glob("*.wav")):
                 archive.write(wav, pathlib.Path("dataset") / "input_wavs" / wav.name)
+        for metadata_name in ("config.json", "multispeaker_manifest.json"):
+            metadata = experiment / metadata_name
+            if metadata.is_file():
+                archive.write(metadata, pathlib.Path("project") / metadata.name)
     return "Package ready: %s" % package.name, str(package)
 
 
@@ -2032,7 +2159,10 @@ def import_model_package(uploaded_zip):
         raise
     except Exception as error:
         raise gr.Error("Could not import the model package: %s" % error) from error
-    return "Imported: %s" % ", ".join(imported), gr.update(choices=weight_names())
+    return "Imported: %s" % ", ".join(imported), gr.update(
+        choices=weight_names(),
+        value=None,
+    )
 
 
 with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
@@ -2260,6 +2390,9 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                 with gr.Row():
                     but1 = gr.Button(i18n("转换"), variant="primary")
                     vc_output3 = gr.Textbox(label=i18n("输出信息"))
+                    vc_batch_download = gr.File(
+                        label="Download converted audio ZIP", interactive=False
+                    )
 
                     but1.click(
                         report_missing_index,
@@ -2285,7 +2418,7 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                             protect1,
                             format1,
                         ],
-                        [vc_output3],
+                        [vc_output3, vc_batch_download],
                         api_name="infer_convert_batch",
                     )
                 sid0.change(
@@ -2414,13 +2547,7 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                     workflow_project = gr.Textbox(
                         label="Project name", value="my_voice", interactive=True
                     )
-                    gr.Markdown("Next: open **Training**, click **Use uploaded ZIP**, then run the numbered training stages.")
-            workflow_import.click(
-                import_wav_zip,
-                [workflow_zip, workflow_project],
-                [workflow_import_status, workflow_dataset_path],
-                api_name="workflow_import_zip",
-            )
+                    gr.Markdown("Next: open **Training**. The dataset and project fields are filled automatically; review the settings and click **One-click Train**.")
             with gr.Group(elem_id="vcw-workflow-export"):
                 gr.Markdown("### 2 · Export the trained voice")
                 gr.Markdown(
@@ -2576,6 +2703,17 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                     [trainset_dir4, exp_dir1, sr2, np7, training_mode],
                     [info1, but1, stop_but1],
                     api_name="train_preprocess",
+                )
+                workflow_import.click(
+                    import_wav_zip_for_training,
+                    [workflow_zip, workflow_project],
+                    [
+                        workflow_import_status,
+                        workflow_dataset_path,
+                        trainset_dir4,
+                        exp_dir1,
+                    ],
+                    api_name="workflow_import_zip",
                 )
                 workflow_use_dataset.click(
                     lambda path, project: (gr.update(value=path), gr.update(value=project)),
