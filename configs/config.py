@@ -174,7 +174,6 @@ class Config:
             self.noautoopen,
             self.dml,
             self.auth,
-            self.auth_username,
             self.auth_password,
             self.cloudflare_tunnel,
         ) = self.arg_parse()
@@ -214,10 +213,7 @@ class Config:
         parser.add_argument(
             "--auth",
             action="store_true",
-            help="Require a VCW login. A secure password is generated when omitted.",
-        )
-        parser.add_argument(
-            "--auth-username", default="vcw", help="VCW login username",
+            help="Require a password-only VCW login. A secure password is generated when omitted.",
         )
         parser.add_argument(
             "--auth-password",
@@ -239,7 +235,6 @@ class Config:
             auth_password = secrets.token_urlsafe(18)
         if auth_enabled:
             print("\nVCW login is enabled", flush=True)
-            print("Username: %s" % cmd_opts.auth_username, flush=True)
             print("Password: %s" % auth_password, flush=True)
             print("Keep this password private. It changes every time VCW starts.\n", flush=True)
 
@@ -251,7 +246,6 @@ class Config:
             cmd_opts.noautoopen,
             cmd_opts.dml,
             auth_enabled,
-            cmd_opts.auth_username,
             auth_password,
             cmd_opts.tunnel,
         )

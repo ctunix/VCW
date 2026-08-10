@@ -52,6 +52,7 @@ from tools.pymss_webui import (
 )
 from tools.file_io import read_text
 from tools.process_utils import kill_process_tree
+from tools.web_auth import add_password_login
 from tools.multispeaker import (
     ManifestError,
     build_manifest_from_root,
@@ -145,6 +146,8 @@ def launch_webui_with_port_fallback(app, config):
     """Launch Gradio, increasing the requested port until startup succeeds."""
     next_port = config.listen_port
     queued_app = app.queue(concurrency_count=511, max_size=1022)
+    if config.auth:
+        add_password_login(app, config.auth_password, config.cloudflare_tunnel)
     while True:
         config.listen_port = find_available_port(next_port)
         if config.listen_port != next_port:
@@ -161,7 +164,6 @@ def launch_webui_with_port_fallback(app, config):
                 inbrowser=not config.noautoopen,
                 server_port=config.listen_port,
                 quiet=True,
-                auth=(config.auth_username, config.auth_password) if config.auth else None,
             )
             return config.listen_port
         except OSError as error:
@@ -1850,6 +1852,38 @@ TRAINING_INFO_CSS = """
 }
 """
 
+VCW_THEME_CSS = TRAINING_INFO_CSS + """
+:root {
+    --vcw-bg: #16161e; --vcw-surface: #1e1f28; --vcw-panel: #2d2e36;
+    --vcw-border: #4a5f8f; --vcw-primary: #5ccfe6; --vcw-accent: #73d0ff;
+    --vcw-text: #a1a8cf; --vcw-bold: #d5d8ec; --vcw-muted: #8995bc;
+}
+.gradio-container {
+    max-width: 1440px !important; margin: 0 auto !important; padding: 18px !important;
+    background: var(--vcw-bg) !important; color: var(--vcw-text) !important;
+    font-family: "JetBrains Mono", "Fira Code", Consolas, monospace !important;
+}
+.gradio-container, .gradio-container .block, .gradio-container .form, .gradio-container .wrap {
+    border-radius: 2px !important;
+}
+.gradio-container .tabs { border-bottom: 1px solid var(--vcw-border) !important; }
+.gradio-container .tabs button { color: var(--vcw-muted) !important; font-family: inherit !important; }
+.gradio-container .tabs button.selected { color: var(--vcw-primary) !important; border-color: var(--vcw-primary) !important; }
+.gradio-container input, .gradio-container textarea, .gradio-container select {
+    background: var(--vcw-surface) !important; color: var(--vcw-bold) !important;
+    border-color: var(--vcw-border) !important; font-family: inherit !important;
+}
+.gradio-container input:focus, .gradio-container textarea:focus { box-shadow: 0 0 0 2px #5ccfe633 !important; border-color: var(--vcw-primary) !important; }
+.gradio-container button.primary { background: var(--vcw-primary) !important; color: var(--vcw-bg) !important; border-color: var(--vcw-primary) !important; }
+.gradio-container button.primary:hover { background: var(--vcw-accent) !important; }
+.vcw-topbar { display:flex; align-items:center; gap:14px; margin:-2px 0 18px; padding:10px 14px; background:var(--vcw-surface); border:1px solid var(--vcw-border); border-top:2px solid var(--vcw-primary); }
+.vcw-topbar__logo { color:var(--vcw-primary); font-size:20px; font-weight:700; letter-spacing:2px; }
+.vcw-topbar__sub { color:var(--vcw-muted); font-size:11px; letter-spacing:.5px; }
+.vcw-topbar__status { margin-left:auto; padding:3px 9px; color:#7ec97a; border:1px solid #7ec97a66; font-size:11px; }
+.vcw-panel { margin:10px 0; padding:16px !important; background:var(--vcw-panel) !important; border:1px solid var(--vcw-border) !important; border-top:2px solid var(--vcw-primary) !important; }
+.vcw-step { color:var(--vcw-primary); font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase; }
+"""
+
 
 def change_f0_method(f0method8):
     if f0method8 == "rmvpe":
@@ -1937,8 +1971,48 @@ def export_workflow_package(project_name, include_uploaded_wavs):
     return "Package ready: %s" % package.name, str(package)
 
 
-with gr.Blocks(title="VCW WebUI", css=TRAINING_INFO_CSS) as app:
-    gr.Markdown("## VCW WebUI")
+def import_model_package(uploaded_zip):
+    """Install a VCW package ZIP's model files for browser-based inference."""
+    if not uploaded_zip:
+        raise gr.Error("Upload a VCW package ZIP first.")
+    archive_path = pathlib.Path(uploaded_zip)
+    if archive_path.suffix.lower() != ".zip":
+        raise gr.Error("Upload a .zip package.")
+    try:
+        with ZipFile(archive_path) as archive:
+            entries = [
+                item for item in archive.infolist()
+                if not item.is_dir()
+                and pathlib.PurePosixPath(item.filename).suffix.lower() in {".pth", ".index"}
+            ]
+            if not entries:
+                raise gr.Error("This ZIP contains no .pth or .index model files.")
+            if len(entries) > 50 or sum(item.file_size for item in entries) > 4 * 1024**3:
+                raise gr.Error("Model package is too large.")
+            pathlib.Path(weight_root).mkdir(parents=True, exist_ok=True)
+            pathlib.Path(outside_index_root).mkdir(parents=True, exist_ok=True)
+            imported = []
+            for item in entries:
+                filename = pathlib.PurePosixPath(item.filename).name
+                destination = pathlib.Path(
+                    weight_root if filename.lower().endswith(".pth") else outside_index_root
+                ) / filename
+                with archive.open(item) as source, open(destination, "wb") as target:
+                    shutil.copyfileobj(source, target)
+                imported.append(filename)
+    except gr.Error:
+        raise
+    except Exception as error:
+        raise gr.Error("Could not import the model package: %s" % error) from error
+    return "Imported: %s" % ", ".join(imported), gr.update(choices=weight_names())
+
+
+with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
+    gr.HTML(
+        '<div class="vcw-topbar"><span class="vcw-topbar__logo">VCW</span>'
+        '<span class="vcw-topbar__sub">VOICE CLONING WORKFLOW</span>'
+        '<span class="vcw-topbar__status">● READY</span></div>'
+    )
     gr.Markdown(
         value=i18n(
             "本软件以MIT协议开源, 作者不对软件具备任何控制力, 使用软件者、传播软件导出的声音者自负全责. <br>如不认可该条款, 则不能使用或引用软件包内任何代码和文件. 详见根目录<b>LICENSE</b>."
@@ -2290,10 +2364,10 @@ with gr.Blocks(title="VCW WebUI", css=TRAINING_INFO_CSS) as app:
                     )
         with gr.TabItem("VCW Workflow"):
             gr.Markdown(
-                "## Voice Cloning Workflow\n"
-                "Upload one ZIP of WAV files, import it into a training folder, complete training in the next tab, then download one package ZIP."
+                '<span class="vcw-step">EZ MODE · ZIP → TRAIN → EXPORT</span>\n\n'
+                "Upload one ZIP of WAV files, send it straight to the Training tab, run VCW's one-key training, then download one package ZIP."
             )
-            with gr.Group():
+            with gr.Group(elem_classes=["vcw-panel"]):
                 gr.Markdown("### 1. Upload WAV ZIP")
                 with gr.Row():
                     workflow_project = gr.Textbox(
@@ -2313,8 +2387,24 @@ with gr.Blocks(title="VCW WebUI", css=TRAINING_INFO_CSS) as app:
                     [workflow_import_status, workflow_dataset_path],
                     api_name="workflow_import_zip",
                 )
-            with gr.Group():
+            with gr.Group(elem_classes=["vcw-panel"]):
                 gr.Markdown("### 2. Download trained package")
+                gr.Markdown(
+                    "To use a previously trained VCW package for inference, upload it here. Its `.pth` and `.index` files are added to the model list."
+                )
+                workflow_model_zip = gr.File(
+                    label="VCW model package ZIP", file_types=[".zip"], type="filepath", interactive=True
+                )
+                workflow_model_import = gr.Button("Import model package", variant="secondary")
+                workflow_model_status = gr.Textbox(label="Model import status", interactive=False)
+                workflow_model_import.click(
+                    import_model_package,
+                    [workflow_model_zip],
+                    [workflow_model_status, sid0],
+                    api_name="workflow_import_model",
+                )
+            with gr.Group(elem_classes=["vcw-panel"]):
+                gr.Markdown("### 3. Download trained package")
                 gr.Markdown(
                     "After training has produced a model with the same project name, create a ZIP containing the model, any available index, and optionally the original WAVs."
                 )
@@ -2453,9 +2543,9 @@ with gr.Blocks(title="VCW WebUI", css=TRAINING_INFO_CSS) as app:
                     api_name="train_preprocess",
                 )
                 workflow_use_dataset.click(
-                    lambda path: gr.update(value=path),
-                    [workflow_dataset_path],
-                    [trainset_dir4],
+                    lambda path, project: (gr.update(value=path), gr.update(value=project)),
+                    [workflow_dataset_path, workflow_project],
+                    [trainset_dir4, exp_dir1],
                     queue=False,
                 )
                 stop_but1.click(
@@ -3002,9 +3092,8 @@ with gr.Blocks(title="VCW WebUI", css=TRAINING_INFO_CSS) as app:
                 gr.Markdown(traceback.format_exc())
 
     if config.iscolab:
-        app.queue(concurrency_count=511, max_size=1022).launch(
-            share=True,
-            auth=(config.auth_username, config.auth_password) if config.auth else None,
-        )
+        if config.auth:
+            add_password_login(app, config.auth_password, secure_cookie=True)
+        app.queue(concurrency_count=511, max_size=1022).launch(share=True)
     else:
         launch_webui_with_port_fallback(app, config)

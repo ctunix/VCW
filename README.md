@@ -56,10 +56,10 @@ python webui.py --noautoopen --tunnel
 ```
 
 VCW prints a random password and the `trycloudflare.com` URL in the terminal
-or notebook output. Log in as `vcw` with that password. A new password is
-created every time it starts. To keep a specific password, set `VCW_PASSWORD`
-before launching. Quick Tunnel URLs are temporary and should only be shared
-with people you trust.
+or notebook output. The VCW login page asks for that password only; no username
+is required. A new password is created every time it starts. To keep a specific
+password, set `VCW_PASSWORD` before launching. Quick Tunnel URLs are temporary
+and should only be shared with people you trust.
 
 The **VCW Workflow** tab accepts a ZIP containing WAV files, creates a
 training folder for the existing Training tab, and creates a downloadable ZIP
