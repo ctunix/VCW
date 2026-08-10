@@ -3101,9 +3101,9 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
             except Exception:
                 gr.Markdown(traceback.format_exc())
 
-    if config.iscolab:
-        if config.auth:
-            add_password_login(app, config.auth_password, secure_cookie=True)
-        app.queue(concurrency_count=511, max_size=1022).launch(share=True)
-    else:
-        launch_webui_with_port_fallback(app, config)
+if config.iscolab:
+    if config.auth:
+        add_password_login(app, config.auth_password, secure_cookie=True)
+    app.queue(concurrency_count=511, max_size=1022).launch(share=True)
+else:
+    launch_webui_with_port_fallback(app, config)
