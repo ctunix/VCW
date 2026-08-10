@@ -2097,6 +2097,61 @@ def import_wav_zip_for_training(uploaded_zip, project_name):
     return status, dataset_path, gr.update(value=dataset_path), gr.update(value=name)
 
 
+def workflow_artifact_status(project_name):
+    name, _ = workflow_experiment_dir(project_name)
+    model = pathlib.Path(weight_root) / (name + ".pth")
+    experiment = pathlib.Path(now_dir) / "logs" / name
+    indices = list(experiment.glob("added_*.index")) or list(
+        pathlib.Path(outside_index_root).glob(f"{name}_*added_*.index")
+    )
+    ready = model.is_file() and bool(indices)
+    if ready:
+        detail = "Ready: trained model and %s usable index file(s) found." % len(indices)
+    elif model.is_file():
+        detail = "Model training finished, but the usable index is not ready yet."
+    else:
+        detail = "Training is not complete. Finish model and index training first."
+    return detail, gr.update(interactive=ready)
+
+
+def read_workflow_logs(project_name):
+    name, _ = workflow_experiment_dir(project_name)
+    experiment = pathlib.Path(now_dir) / "logs" / name
+    sections = []
+    for filename, title in (
+        ("preprocess.log", "DATA PREPARATION"),
+        ("extract_f0_feature.log", "FEATURE EXTRACTION"),
+        ("train.log", "MODEL TRAINING"),
+        ("train_index.log", "INDEX TRAINING"),
+    ):
+        path = experiment / filename
+        if path.is_file():
+            content = read_log(path, max_lines=80)
+            if content:
+                sections.append("===== %s =====\n%s" % (title, content))
+    return "\n\n".join(sections) or "No workflow logs exist for this project yet."
+
+
+def apply_workflow_advanced(sr, use_f0, version, epochs, batch_size, f0_method):
+    normalized = version == "v1" and sr == "32k"
+    if normalized:
+        sr = "40k"
+    pretrained_g, pretrained_d = change_sr2(sr, use_f0, version)
+    sample_rate_choices = ["40k", "48k"] if version == "v1" else ["32k", "40k", "48k"]
+    return (
+        gr.update(choices=sample_rate_choices, value=sr),
+        gr.update(value=use_f0),
+        gr.update(value=version),
+        gr.update(value=int(epochs)),
+        gr.update(value=int(batch_size)),
+        gr.update(value=f0_method),
+        gr.update(value=pretrained_g),
+        gr.update(value=pretrained_d),
+        "Advanced settings applied to the Training tab.%s"
+        % (" v1 does not support 32k, so VCW selected 40k." if normalized else ""),
+    )
+
+
 def export_workflow_package(project_name, include_uploaded_wavs):
     """Bundle model/index artifacts and, optionally, source WAVs for download."""
     require_training_idle("Package export")
@@ -2548,18 +2603,95 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                         label="Project name", value="my_voice", interactive=True
                     )
                     gr.Markdown("Next: open **Training**. The dataset and project fields are filled automatically; review the settings and click **One-click Train**.")
+            with gr.Accordion("Advanced settings and tools", open=False):
+                gr.Markdown(
+                    "These controls feed the detailed Training tab. VCW also includes batch inference, multi-speaker training, checkpoint tools, and Demucs/PyMSS vocal separation."
+                )
+                with gr.Row():
+                    workflow_adv_sr = gr.Radio(
+                        label="Sample rate", choices=["32k", "40k", "48k"], value="40k"
+                    )
+                    workflow_adv_f0 = gr.Checkbox(
+                        label="Pitch guidance (recommended for singing)", value=True
+                    )
+                    workflow_adv_version = gr.Radio(
+                        label="Model version", choices=["v1", "v2"], value="v2"
+                    )
+                    workflow_adv_f0_method = gr.Radio(
+                        label="Pitch extraction", choices=["pm", "rmvpe"], value="rmvpe"
+                    )
+                with gr.Row():
+                    workflow_adv_epochs = gr.Slider(
+                        label="Training epochs", minimum=2, maximum=1200, step=1, value=20
+                    )
+                    workflow_adv_batch = gr.Slider(
+                        label="Batch size", minimum=1, maximum=40, step=1, value=default_batch_size
+                    )
+                workflow_advanced_apply = gr.Button(
+                    "Apply advanced settings", variant="secondary"
+                )
+                workflow_advanced_status = gr.Textbox(
+                    label="Advanced settings status", interactive=False
+                )
+                gr.Markdown("#### Demucs / source separation")
+                workflow_demucs_model = gr.Dropdown(
+                    label="Available Demucs/PyMSS separation model",
+                    choices=pymss_names,
+                    value=pymss_names[0],
+                    interactive=True,
+                )
+                workflow_demucs_model.change(
+                    lambda selected: (
+                        gr.update(value=selected),
+                        gr.update(value=get_model_info(selected)),
+                    ),
+                    [workflow_demucs_model],
+                    [model_choose, model_info],
+                    queue=False,
+                )
+                gr.Markdown(
+                    "Selecting a model here configures **Vocal/Instrumental Separation & Dereverb**. Open that tab to upload songs, run separation, and inspect detailed progress."
+                )
+            with gr.Group(elem_id="vcw-workflow-model"):
+                gr.Markdown("### Live workflow logs")
+                workflow_refresh_logs = gr.Button("Refresh full logs", variant="secondary")
+                workflow_logs = gr.Textbox(
+                    label="Preparation, extraction, training, and index logs",
+                    lines=24,
+                    max_lines=40,
+                    interactive=False,
+                )
+                workflow_refresh_logs.click(
+                    read_workflow_logs,
+                    [workflow_project],
+                    [workflow_logs],
+                    queue=False,
+                    api_name="workflow_logs",
+                )
             with gr.Group(elem_id="vcw-workflow-export"):
                 gr.Markdown("### 2 · Export the trained voice")
                 gr.Markdown(
-                    "After Training finishes, package the model, index, and optionally its source WAV files into one download."
+                    "Download remains locked until both the final model and usable index are finished."
                 )
                 with gr.Row():
                     workflow_include_wavs = gr.Checkbox(
                         label="Include training WAVs", value=True, interactive=True
                     )
-                    workflow_export = gr.Button("Build package ZIP", variant="primary")
+                    workflow_check_artifacts = gr.Button(
+                        "Check training result", variant="secondary"
+                    )
+                    workflow_export = gr.Button(
+                        "Build package ZIP", variant="primary", interactive=False
+                    )
                 workflow_export_status = gr.Textbox(label="Export status", interactive=False)
                 workflow_download = gr.File(label="Download VCW package", interactive=False)
+                workflow_check_artifacts.click(
+                    workflow_artifact_status,
+                    [workflow_project],
+                    [workflow_export_status, workflow_export],
+                    queue=False,
+                    api_name="workflow_check_artifacts",
+                )
                 workflow_export.click(
                     export_workflow_package,
                     [workflow_project, workflow_include_wavs],
@@ -2906,8 +3038,8 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                     info3 = gr.Textbox(
                         label=i18n("输出信息"),
                         value="",
-                        lines=8,
-                        max_lines=8,
+                        lines=20,
+                        max_lines=30,
                         elem_id="training-info-step3",
                     )
                     but3.click(
@@ -2980,6 +3112,30 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                         [],
                         [info3, but5, stop_but5],
                         queue=False,
+                    )
+                    workflow_advanced_apply.click(
+                        apply_workflow_advanced,
+                        [
+                            workflow_adv_sr,
+                            workflow_adv_f0,
+                            workflow_adv_version,
+                            workflow_adv_epochs,
+                            workflow_adv_batch,
+                            workflow_adv_f0_method,
+                        ],
+                        [
+                            sr2,
+                            if_f0_3,
+                            version19,
+                            total_epoch11,
+                            batch_size12,
+                            f0method8,
+                            pretrained_G14,
+                            pretrained_D15,
+                            workflow_advanced_status,
+                        ],
+                        queue=False,
+                        api_name="workflow_apply_advanced",
                     )
 
         with gr.TabItem(i18n("多说话人训练集辅助")):
