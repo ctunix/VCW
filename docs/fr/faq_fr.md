@@ -48,18 +48,18 @@ is_half=bool(sys.argv[9])<br>
 ### Explication des arguments :
 
 1. **Numéro de voix cible** : `0` (dans cet exemple)
-2. **Chemin du fichier audio d'entrée** : `"C:\ YOUR PATH FOR THE ROOT (RVC0813Nvidia)\INPUTS_VOCAL\vocal.wav"`
-3. **Chemin du fichier index** : `"C:\ YOUR PATH FOR THE ROOT (RVC0813Nvidia)\logs\Hagrid.index"`
+2. **Chemin du fichier audio d'entrée** : `"C:\ YOUR PATH FOR THE ROOT (VCW0813Nvidia)\INPUTS_VOCAL\vocal.wav"`
+3. **Chemin du fichier index** : `"C:\ YOUR PATH FOR THE ROOT (VCW0813Nvidia)\logs\Hagrid.index"`
 4. **Méthode pour l'extraction du pitch (F0)** : `harvest` (dans cet exemple)
-5. **Chemin de sortie pour le fichier audio traité** : `"C:\ YOUR PATH FOR THE ROOT (RVC0813Nvidia)\INPUTS_VOCAL\test.wav"`
-6. **Chemin du modèle** : `"C:\ YOUR PATH FOR THE ROOT (RVC0813Nvidia)\weights\HagridFR.pth"`
+5. **Chemin de sortie pour le fichier audio traité** : `"C:\ YOUR PATH FOR THE ROOT (VCW0813Nvidia)\INPUTS_VOCAL\test.wav"`
+6. **Chemin du modèle** : `"C:\ YOUR PATH FOR THE ROOT (VCW0813Nvidia)\weights\HagridFR.pth"`
 7. **Taux d'index** : `0.6` (dans cet exemple)
 8. **Périphérique pour l'exécution (GPU/CPU)** : `cuda:0` pour une carte NVIDIA, par exemple.
 9. **Protection des droits d'auteur (True/False)**.
 
 <!-- Pour myinfer nouveau models :
 
-runtime\python.exe myinfer.py 0 "C:\ YOUR PATH FOR THE ROOT (RVC0813Nvidia)\INPUTS_VOCAL\vocal.wav" "C:\ YOUR PATH FOR THE ROOT (RVC0813Nvidia)\logs\Hagrid.index" harvest "C:\ YOUR PATH FOR THE ROOT (RVC0813Nvidia)\INPUTS_VOCAL\test.wav" "C:\ YOUR PATH FOR THE ROOT (RVC0813Nvidia)\weights\HagridFR.pth" 0.6 cuda:0 True 5 44100 44100 1.0 1.0 True
+runtime\python.exe myinfer.py 0 "C:\ YOUR PATH FOR THE ROOT (VCW0813Nvidia)\INPUTS_VOCAL\vocal.wav" "C:\ YOUR PATH FOR THE ROOT (VCW0813Nvidia)\logs\Hagrid.index" harvest "C:\ YOUR PATH FOR THE ROOT (VCW0813Nvidia)\INPUTS_VOCAL\test.wav" "C:\ YOUR PATH FOR THE ROOT (VCW0813Nvidia)\weights\HagridFR.pth" 0.6 cuda:0 True 5 44100 44100 1.0 1.0 True
 
 
 f0up_key=sys.argv[1]                     
@@ -81,11 +81,11 @@ protect = sys.argv[15].lower() == 'false' # change for true if needed
 ### Explication des arguments :
 
 1. **Numéro de voix cible** : `0` (dans cet exemple)
-2. **Chemin du fichier audio d'entrée** : `"C:\ YOUR PATH FOR THE ROOT (RVC0813Nvidia)\INPUTS_VOCAL\vocal.wav"`
-3. **Chemin du fichier index** : `"C:\ YOUR PATH FOR THE ROOT (RVC0813Nvidia)\logs\Hagrid.index"`
+2. **Chemin du fichier audio d'entrée** : `"C:\ YOUR PATH FOR THE ROOT (VCW0813Nvidia)\INPUTS_VOCAL\vocal.wav"`
+3. **Chemin du fichier index** : `"C:\ YOUR PATH FOR THE ROOT (VCW0813Nvidia)\logs\Hagrid.index"`
 4. **Méthode pour l'extraction du pitch (F0)** : `harvest` (dans cet exemple)
-5. **Chemin de sortie pour le fichier audio traité** : `"C:\ YOUR PATH FOR THE ROOT (RVC0813Nvidia)\INPUTS_VOCAL\test.wav"`
-6. **Chemin du modèle** : `"C:\ YOUR PATH FOR THE ROOT (RVC0813Nvidia)\weights\HagridFR.pth"`
+5. **Chemin de sortie pour le fichier audio traité** : `"C:\ YOUR PATH FOR THE ROOT (VCW0813Nvidia)\INPUTS_VOCAL\test.wav"`
+6. **Chemin du modèle** : `"C:\ YOUR PATH FOR THE ROOT (VCW0813Nvidia)\weights\HagridFR.pth"`
 7. **Taux d'index** : `0.6` (dans cet exemple)
 8. **Périphérique pour l'exécution (GPU/CPU)** : `cuda:0` pour une carte NVIDIA, par exemple.
 9. **Protection des droits d'auteur (True/False)**.

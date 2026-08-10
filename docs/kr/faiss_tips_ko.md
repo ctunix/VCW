@@ -3,8 +3,8 @@ Facebook AI Similarity Search (Faiss) 팁
 # Faiss에 대하여
 Faiss 는 Facebook Research가 개발하는, 고밀도 벡터 이웃 검색 라이브러리입니다. 근사 근접 탐색법 (Approximate Neigbor Search)은 약간의 정확성을 희생하여 유사 벡터를 고속으로 찾습니다.
 
-## RVC에 있어서 Faiss
-RVC에서는 HuBERT로 변환한 feature의 embedding을 위해 훈련 데이터에서 생성된 embedding과 유사한 embadding을 검색하고 혼합하여 원래의 음성에 더욱 가까운 변환을 달성합니다. 그러나, 이 탐색법은 단순히 수행하면 시간이 다소 소모되므로, 근사 근접 탐색법을 통해 고속 변환을 가능케 하고 있습니다.
+## VCW에 있어서 Faiss
+VCW에서는 HuBERT로 변환한 feature의 embedding을 위해 훈련 데이터에서 생성된 embedding과 유사한 embadding을 검색하고 혼합하여 원래의 음성에 더욱 가까운 변환을 달성합니다. 그러나, 이 탐색법은 단순히 수행하면 시간이 다소 소모되므로, 근사 근접 탐색법을 통해 고속 변환을 가능케 하고 있습니다.
 
 # 구현 개요
 모델이 위치한 `/logs/your-experiment/3_feature256`에는 각 음성 데이터에서 HuBERT가 추출한 feature들이 있습니다. 여기에서 파일 이름별로 정렬된 npy 파일을 읽고, 벡터를 연결하여 big_npy ([N, 256] 모양의 벡터) 를 만듭니다. big_npy를 `/logs/your-experiment/total_fea.npy`로 저장한 후, Faiss로 학습시킵니다.
@@ -15,7 +15,7 @@ RVC에서는 HuBERT로 변환한 feature의 embedding을 위해 훈련 데이터
 
 # 방법의 설명
 ## Index factory
-index factory는 여러 근사 근접 탐색법을 문자열로 연결하는 pipeline을 문자열로 표기하는 Faiss만의 독자적인 기법입니다. 이를 통해 index factory의 문자열을 변경하는 것만으로 다양한 근사 근접 탐색을 시도해 볼 수 있습니다. RVC에서는 다음과 같이 사용됩니다:
+index factory는 여러 근사 근접 탐색법을 문자열로 연결하는 pipeline을 문자열로 표기하는 Faiss만의 독자적인 기법입니다. 이를 통해 index factory의 문자열을 변경하는 것만으로 다양한 근사 근접 탐색을 시도해 볼 수 있습니다. VCW에서는 다음과 같이 사용됩니다:
 
 ```python
 index = Faiss.index_factory(256, "IVF%s,Flat" % n_ivf)
@@ -79,7 +79,7 @@ index = Faiss.index_factory(256, "IVF1024,PQ128x4fs,RFlat")
 ## IVF 권장 매개변수
 IVF의 수가 너무 많으면, 가령 데이터 수의 수만큼 IVF로 양자화(Quantization)를 수행하면, 이것은 완전탐색과 같아져 효율이 나빠지게 됩니다. 1M 이하의 경우 IVF 값은 데이터 포인트 수 N에 대해 4sqrt(N) ~ 16sqrt(N)를 사용하는 것을 권장합니다.
 
-n_probe는 n_probe의 수에 비례하여 계산 시간이 늘어나므로 정확도와 시간을 적절히 균형을 맞추어 주십시오. 개인적으로 RVC에 있어서 그렇게까지 정확도는 필요 없다고 생각하기 때문에 n_probe = 1이면 된다고 생각합니다.
+n_probe는 n_probe의 수에 비례하여 계산 시간이 늘어나므로 정확도와 시간을 적절히 균형을 맞추어 주십시오. 개인적으로 VCW에 있어서 그렇게까지 정확도는 필요 없다고 생각하기 때문에 n_probe = 1이면 된다고 생각합니다.
 
 ## FastScan
 FastScan은 직적 양자화를 레지스터에서 수행함으로써 거리의 고속 근사를 가능하게 하는 방법입니다.직적 양자화는 학습시에 d차원마다(보통 d=2)에 독립적으로 클러스터링을 실시해, 클러스터끼리의 거리를 사전 계산해 lookup table를 작성합니다. 예측시는 lookup table을 보면 각 차원의 거리를 O(1)로 계산할 수 있습니다. 따라서 PQ 다음에 지정하는 숫자는 일반적으로 벡터의 절반 차원을 지정합니다.
