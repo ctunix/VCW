@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 SESSION_COOKIE = "vcw_session"
 LOGIN_PATH = "/__vcw_login"
+PUBLIC_PATHS = {LOGIN_PATH, "/startup-events"}
 
 
 def _login_page(error: str = "") -> str:
@@ -48,7 +49,7 @@ class PasswordGate:
         if scope["type"] not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return
-        if scope.get("path", "").startswith(LOGIN_PATH):
+        if scope.get("path", "") in PUBLIC_PATHS:
             await self.app(scope, receive, send)
             return
         if _cookies(scope).get(SESSION_COOKIE) == self.session_token:

@@ -1880,7 +1880,7 @@ VCW_THEME_CSS = TRAINING_INFO_CSS + """
 .vcw-topbar__logo { color:var(--vcw-primary); font-size:20px; font-weight:700; letter-spacing:2px; }
 .vcw-topbar__sub { color:var(--vcw-muted); font-size:11px; letter-spacing:.5px; }
 .vcw-topbar__status { margin-left:auto; padding:3px 9px; color:#7ec97a; border:1px solid #7ec97a66; font-size:11px; }
-.vcw-panel { margin:10px 0; padding:16px !important; background:var(--vcw-panel) !important; border:1px solid var(--vcw-border) !important; border-top:2px solid var(--vcw-primary) !important; }
+#vcw-workflow-upload, #vcw-workflow-model, #vcw-workflow-export { margin:10px 0; padding:16px !important; background:var(--vcw-panel) !important; border:1px solid var(--vcw-border) !important; border-top:2px solid var(--vcw-primary) !important; }
 .vcw-step { color:var(--vcw-primary); font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase; }
 """
 
@@ -1905,11 +1905,21 @@ def workflow_experiment_dir(name):
     return name, WORKFLOW_UPLOAD_DIR / name / "uploaded_wavs"
 
 
+def gradio_upload_path(uploaded_file):
+    """Normalize Gradio 3.14's temporary-file upload value to a Path."""
+    if isinstance(uploaded_file, (str, os.PathLike)):
+        return pathlib.Path(uploaded_file)
+    filename = getattr(uploaded_file, "name", None)
+    if filename:
+        return pathlib.Path(filename)
+    raise gr.Error("VCW could not read the uploaded file.")
+
+
 def import_wav_zip(uploaded_zip, project_name):
     """Safely flatten WAVs from an uploaded ZIP into a training-ready folder."""
     if not uploaded_zip:
         raise gr.Error("Upload one ZIP containing WAV files first.")
-    archive_path = pathlib.Path(uploaded_zip)
+    archive_path = gradio_upload_path(uploaded_zip)
     if archive_path.suffix.lower() != ".zip":
         raise gr.Error("Upload a .zip file containing WAV files.")
     name, destination = workflow_experiment_dir(project_name)
@@ -1975,7 +1985,7 @@ def import_model_package(uploaded_zip):
     """Install a VCW package ZIP's model files for browser-based inference."""
     if not uploaded_zip:
         raise gr.Error("Upload a VCW package ZIP first.")
-    archive_path = pathlib.Path(uploaded_zip)
+    archive_path = gradio_upload_path(uploaded_zip)
     if archive_path.suffix.lower() != ".zip":
         raise gr.Error("Upload a .zip package.")
     try:
@@ -2367,14 +2377,14 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                 '<span class="vcw-step">EZ MODE · ZIP → TRAIN → EXPORT</span>\n\n'
                 "Upload one ZIP of WAV files, send it straight to the Training tab, run VCW's one-key training, then download one package ZIP."
             )
-            with gr.Group(elem_classes=["vcw-panel"]):
+            with gr.Group(elem_id="vcw-workflow-upload"):
                 gr.Markdown("### 1. Upload WAV ZIP")
                 with gr.Row():
                     workflow_project = gr.Textbox(
                         label="Project name", value="my_voice", interactive=True
                     )
                     workflow_zip = gr.File(
-                        label="WAV ZIP", file_types=[".zip"], type="filepath", interactive=True
+                        label="WAV ZIP", file_types=[".zip"], type="file", interactive=True
                     )
                 workflow_import = gr.Button("Import WAV ZIP", variant="primary")
                 workflow_import_status = gr.Textbox(label="Import status", interactive=False)
@@ -2387,13 +2397,13 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                     [workflow_import_status, workflow_dataset_path],
                     api_name="workflow_import_zip",
                 )
-            with gr.Group(elem_classes=["vcw-panel"]):
+            with gr.Group(elem_id="vcw-workflow-model"):
                 gr.Markdown("### 2. Download trained package")
                 gr.Markdown(
                     "To use a previously trained VCW package for inference, upload it here. Its `.pth` and `.index` files are added to the model list."
                 )
                 workflow_model_zip = gr.File(
-                    label="VCW model package ZIP", file_types=[".zip"], type="filepath", interactive=True
+                    label="VCW model package ZIP", file_types=[".zip"], type="file", interactive=True
                 )
                 workflow_model_import = gr.Button("Import model package", variant="secondary")
                 workflow_model_status = gr.Textbox(label="Model import status", interactive=False)
@@ -2403,7 +2413,7 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                     [workflow_model_status, sid0],
                     api_name="workflow_import_model",
                 )
-            with gr.Group(elem_classes=["vcw-panel"]):
+            with gr.Group(elem_id="vcw-workflow-export"):
                 gr.Markdown("### 3. Download trained package")
                 gr.Markdown(
                     "After training has produced a model with the same project name, create a ZIP containing the model, any available index, and optionally the original WAVs."
