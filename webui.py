@@ -132,11 +132,13 @@ def start_cloudflare_quick_tunnel(port):
 
     def relay_output():
         for line in iter(process.stdout.readline, ""):
-            match = re.search(r"https://[a-z0-9-]+\\.trycloudflare\\.com", line)
+            match = re.search(
+                r"https://[a-z0-9-]+\.trycloudflare\.com", line, re.IGNORECASE
+            )
             if match:
                 print("\nVCW Cloudflare URL: %s\n" % match.group(0), flush=True)
-            else:
-                logger.info("cloudflared: %s", line.rstrip())
+            elif line.strip():
+                print("cloudflared: %s" % line.rstrip(), flush=True)
 
     threading.Thread(target=relay_output, daemon=True).start()
     return process
