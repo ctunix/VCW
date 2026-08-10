@@ -2098,6 +2098,44 @@ def import_wav_zip_for_training(uploaded_zip, project_name):
     return status, dataset_path, gr.update(value=dataset_path), gr.update(value=name)
 
 
+def import_wav_zip_parts(uploaded_parts, project_name):
+    """Byte-join split ZIP parts and import them like a single ZIP.
+
+    Single browser uploads cap out around 90-100 MB (browser memory and the
+    Cloudflare tunnel body limit), so large ZIPs are split on the client into
+    smaller ".zip" parts that each upload individually. Concatenating the
+    parts reproduces the original ZIP byte-for-byte.
+    """
+    require_training_idle("Dataset import")
+    files = [gradio_upload_path(part) for part in (uploaded_parts or []) if part]
+    if not files:
+        raise gr.Error("Upload at least one ZIP part first.")
+    for path in files:
+        if path.suffix.lower() != ".zip":
+            raise gr.Error("Each part must be a .zip file (parts of the same original ZIP).")
+    name, _ = workflow_experiment_dir(project_name)
+    merged = WORKFLOW_UPLOAD_DIR / (
+        ".%s_parts_%s_%s.zip" % (name, os.getpid(), time.time_ns())
+    )
+    try:
+        merged.parent.mkdir(parents=True, exist_ok=True)
+        with open(merged, "wb") as target:
+            for path in files:
+                with open(path, "rb") as source:
+                    shutil.copyfileobj(source, target)
+        return import_wav_zip(merged, project_name)
+    finally:
+        merged.unlink(missing_ok=True)
+
+
+def import_wav_zip_parts_for_training(*args):
+    project_name = args[0]
+    uploaded_parts = list(args[1:])
+    status, dataset_path = import_wav_zip_parts(uploaded_parts, project_name)
+    name, _ = workflow_experiment_dir(project_name)
+    return status, dataset_path, gr.update(value=dataset_path), gr.update(value=name)
+
+
 def workflow_artifact_status(project_name):
     name, _ = workflow_experiment_dir(project_name)
     model = pathlib.Path(weight_root) / (name + ".pth")
@@ -2596,6 +2634,23 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                         workflow_dataset_path = gr.Textbox(
                             label="Prepared dataset folder", interactive=False
                         )
+                        gr.Markdown(
+                            "### 1b · Large ZIP (over ~90 MB)\n"
+                            "Single browser uploads (and the Cloudflare tunnel) top out around 100 MB, so split a large ZIP into parts "
+                            "under 90 MB each and upload them here in order (part 1 in slot 1, etc.). "
+                            "The parts are re-joined before importing. "
+                            "The notebook's `split_zip_parts.py` (or `split -b 60m`) can do this."
+                        )
+                        workflow_zip_parts = [
+                            gr.File(
+                                label="ZIP part %d" % (slot + 1),
+                                file_types=[".zip"],
+                                type="file",
+                                interactive=True,
+                            )
+                            for slot in range(8)
+                        ]
+                        workflow_import_parts = gr.Button("Import ZIP parts", variant="primary")
                 with gr.Column(scale=1):
                     with gr.Group(elem_id="vcw-workflow-model"):
                         gr.Markdown("### Project")
@@ -2847,6 +2902,17 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                         exp_dir1,
                     ],
                     api_name="workflow_import_zip",
+                )
+                workflow_import_parts.click(
+                    import_wav_zip_parts_for_training,
+                    [workflow_project] + workflow_zip_parts,
+                    [
+                        workflow_import_status,
+                        workflow_dataset_path,
+                        trainset_dir4,
+                        exp_dir1,
+                    ],
+                    api_name="workflow_import_zip_parts",
                 )
                 workflow_use_dataset.click(
                     lambda path, project: (gr.update(value=path), gr.update(value=project)),
