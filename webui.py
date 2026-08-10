@@ -80,6 +80,7 @@ import logging
 import socket
 import subprocess
 import time
+from zipfile import ZIP_DEFLATED, ZipFile
 
 
 logging.getLogger("numba").setLevel(logging.WARNING)
@@ -111,6 +112,35 @@ def is_gradio_port_in_use_error(error, port):
     return str(error).startswith(f"Port {port} is in use.")
 
 
+def start_cloudflare_quick_tunnel(port):
+    """Start Cloudflare's no-account Quick Tunnel and print its public URL."""
+    cloudflared = shutil.which("cloudflared")
+    if not cloudflared:
+        raise RuntimeError(
+            "Cloudflare tunnel requested but 'cloudflared' was not found on PATH. "
+            "Install cloudflared, then rerun with --tunnel."
+        )
+
+    process = Popen(
+        [cloudflared, "tunnel", "--url", f"http://127.0.0.1:{port}"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    def relay_output():
+        for line in iter(process.stdout.readline, ""):
+            match = re.search(r"https://[a-z0-9-]+\\.trycloudflare\\.com", line)
+            if match:
+                print("\nVCW Cloudflare URL: %s\n" % match.group(0), flush=True)
+            else:
+                logger.info("cloudflared: %s", line.rstrip())
+
+    threading.Thread(target=relay_output, daemon=True).start()
+    return process
+
+
 def launch_webui_with_port_fallback(app, config):
     """Launch Gradio, increasing the requested port until startup succeeds."""
     next_port = config.listen_port
@@ -124,11 +154,14 @@ def launch_webui_with_port_fallback(app, config):
                 config.listen_port,
             )
         try:
+            if config.cloudflare_tunnel:
+                start_cloudflare_quick_tunnel(config.listen_port)
             queued_app.launch(
                 server_name="0.0.0.0",
                 inbrowser=not config.noautoopen,
                 server_port=config.listen_port,
                 quiet=True,
+                auth=(config.auth_username, config.auth_password) if config.auth else None,
             )
             return config.listen_port
         except OSError as error:
@@ -1826,6 +1859,84 @@ def change_f0_method(f0method8):
     return {"visible": visible, "__type__": "update"}
 
 
+WORKFLOW_UPLOAD_DIR = pathlib.Path(now_dir) / "logs"
+WORKFLOW_EXPORT_DIR = pathlib.Path(now_dir) / "exports"
+WORKFLOW_NAME_RE = re.compile(r"[A-Za-z0-9_-]{1,80}")
+
+
+def workflow_experiment_dir(name):
+    name = str(name or "").strip()
+    if not WORKFLOW_NAME_RE.fullmatch(name):
+        raise gr.Error("Use 1-80 letters, numbers, underscores, or hyphens for the project name.")
+    return name, WORKFLOW_UPLOAD_DIR / name / "uploaded_wavs"
+
+
+def import_wav_zip(uploaded_zip, project_name):
+    """Safely flatten WAVs from an uploaded ZIP into a training-ready folder."""
+    if not uploaded_zip:
+        raise gr.Error("Upload one ZIP containing WAV files first.")
+    archive_path = pathlib.Path(uploaded_zip)
+    if archive_path.suffix.lower() != ".zip":
+        raise gr.Error("Upload a .zip file containing WAV files.")
+    name, destination = workflow_experiment_dir(project_name)
+    try:
+        with ZipFile(archive_path) as archive:
+            wav_entries = [
+                item for item in archive.infolist()
+                if not item.is_dir() and pathlib.PurePosixPath(item.filename).suffix.lower() == ".wav"
+            ]
+            total_size = sum(item.file_size for item in wav_entries)
+            if not wav_entries:
+                raise gr.Error("This ZIP contains no WAV files.")
+            if len(wav_entries) > 10000 or total_size > 20 * 1024**3:
+                raise gr.Error("ZIP is too large for VCW's upload workflow.")
+            shutil.rmtree(destination, ignore_errors=True)
+            destination.mkdir(parents=True, exist_ok=True)
+            used_names = set()
+            for number, item in enumerate(wav_entries, 1):
+                base = re.sub(r"[^A-Za-z0-9_.-]+", "_", pathlib.PurePosixPath(item.filename).stem)
+                base = base.strip("._") or "audio"
+                filename = f"{number:04d}_{base}.wav"
+                while filename.lower() in used_names:
+                    filename = f"{number:04d}_{base}_{len(used_names)}.wav"
+                used_names.add(filename.lower())
+                with archive.open(item) as source, open(destination / filename, "wb") as target:
+                    shutil.copyfileobj(source, target)
+    except gr.Error:
+        raise
+    except Exception as error:
+        raise gr.Error("Could not read the ZIP: %s" % error) from error
+    return (
+        "Imported %s WAV file(s). Use this folder in the Training tab, then run preprocessing."
+        % len(wav_entries),
+        str(destination),
+    )
+
+
+def export_workflow_package(project_name, include_uploaded_wavs):
+    """Bundle model/index artifacts and, optionally, source WAVs for download."""
+    name, source_wavs = workflow_experiment_dir(project_name)
+    experiment = pathlib.Path(now_dir) / "logs" / name
+    model = pathlib.Path(weight_root) / f"{name}.pth"
+    indices = list(experiment.glob("*.index")) + list(
+        pathlib.Path(outside_index_root).glob(f"{name}_*.index")
+    )
+    if not model.is_file():
+        raise gr.Error("No exported model was found at %s." % model)
+    WORKFLOW_EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    package = WORKFLOW_EXPORT_DIR / f"{name}_VCW_package.zip"
+    package.unlink(missing_ok=True)
+    with ZipFile(package, "w", ZIP_DEFLATED) as archive:
+        archive.write(model, pathlib.Path("model") / model.name)
+        for index in sorted(set(indices)):
+            if index.is_file():
+                archive.write(index, pathlib.Path("model") / index.name)
+        if include_uploaded_wavs and source_wavs.is_dir():
+            for wav in sorted(source_wavs.glob("*.wav")):
+                archive.write(wav, pathlib.Path("dataset") / "input_wavs" / wav.name)
+    return "Package ready: %s" % package.name, str(package)
+
+
 with gr.Blocks(title="VCW WebUI", css=TRAINING_INFO_CSS) as app:
     gr.Markdown("## VCW WebUI")
     gr.Markdown(
@@ -2177,6 +2288,49 @@ with gr.Blocks(title="VCW WebUI", css=TRAINING_INFO_CSS) as app:
                         [vc_output4, pymss_progress, but2, stop_pymss_button],
                         queue=False,
                     )
+        with gr.TabItem("VCW Workflow"):
+            gr.Markdown(
+                "## Voice Cloning Workflow\n"
+                "Upload one ZIP of WAV files, import it into a training folder, complete training in the next tab, then download one package ZIP."
+            )
+            with gr.Group():
+                gr.Markdown("### 1. Upload WAV ZIP")
+                with gr.Row():
+                    workflow_project = gr.Textbox(
+                        label="Project name", value="my_voice", interactive=True
+                    )
+                    workflow_zip = gr.File(
+                        label="WAV ZIP", file_types=[".zip"], type="filepath", interactive=True
+                    )
+                workflow_import = gr.Button("Import WAV ZIP", variant="primary")
+                workflow_import_status = gr.Textbox(label="Import status", interactive=False)
+                workflow_dataset_path = gr.Textbox(
+                    label="Training folder", interactive=False
+                )
+                workflow_import.click(
+                    import_wav_zip,
+                    [workflow_zip, workflow_project],
+                    [workflow_import_status, workflow_dataset_path],
+                    api_name="workflow_import_zip",
+                )
+            with gr.Group():
+                gr.Markdown("### 2. Download trained package")
+                gr.Markdown(
+                    "After training has produced a model with the same project name, create a ZIP containing the model, any available index, and optionally the original WAVs."
+                )
+                workflow_include_wavs = gr.Checkbox(
+                    label="Include uploaded WAVs", value=True, interactive=True
+                )
+                workflow_export = gr.Button("Create download ZIP", variant="primary")
+                workflow_export_status = gr.Textbox(label="Export status", interactive=False)
+                workflow_download = gr.File(label="Download VCW package", interactive=False)
+                workflow_export.click(
+                    export_workflow_package,
+                    [workflow_project, workflow_include_wavs],
+                    [workflow_export_status, workflow_download],
+                    api_name="workflow_export_zip",
+                )
+
         with gr.TabItem(i18n("训练")):
             gr.Markdown(
                 value=i18n(
@@ -2264,6 +2418,9 @@ with gr.Blocks(title="VCW WebUI", css=TRAINING_INFO_CSS) as app:
                                     "输入训练文件夹路径，例如：E:\\我的训练集"
                                 ),
                             )
+                            workflow_use_dataset = gr.Button(
+                                "Use uploaded ZIP", variant="secondary"
+                            )
                             spk_id5 = gr.Slider(
                                 minimum=0,
                                 maximum=109,
@@ -2294,6 +2451,12 @@ with gr.Blocks(title="VCW WebUI", css=TRAINING_INFO_CSS) as app:
                     [trainset_dir4, exp_dir1, sr2, np7, training_mode],
                     [info1, but1, stop_but1],
                     api_name="train_preprocess",
+                )
+                workflow_use_dataset.click(
+                    lambda path: gr.update(value=path),
+                    [workflow_dataset_path],
+                    [trainset_dir4],
+                    queue=False,
                 )
                 stop_but1.click(
                     stop_preprocess_dataset,
@@ -2839,6 +3002,9 @@ with gr.Blocks(title="VCW WebUI", css=TRAINING_INFO_CSS) as app:
                 gr.Markdown(traceback.format_exc())
 
     if config.iscolab:
-        app.queue(concurrency_count=511, max_size=1022).launch(share=True)
+        app.queue(concurrency_count=511, max_size=1022).launch(
+            share=True,
+            auth=(config.auth_username, config.auth_password) if config.auth else None,
+        )
     else:
         launch_webui_with_port_fallback(app, config)

@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import json
+import secrets
 from multiprocessing import cpu_count
 from pathlib import Path
 from tools.file_io import read_text
@@ -172,6 +173,10 @@ class Config:
             self.noparallel,
             self.noautoopen,
             self.dml,
+            self.auth,
+            self.auth_username,
+            self.auth_password,
+            self.cloudflare_tunnel,
         ) = self.arg_parse()
         # DML is an automatic fallback when no CUDA device satisfies the rule.
         self.dml = self.dml or (infer_device.type == "privateuseone")
@@ -206,9 +211,37 @@ class Config:
             action="store_true",
             help="torch_dml",
         )
+        parser.add_argument(
+            "--auth",
+            action="store_true",
+            help="Require a VCW login. A secure password is generated when omitted.",
+        )
+        parser.add_argument(
+            "--auth-username", default="vcw", help="VCW login username",
+        )
+        parser.add_argument(
+            "--auth-password",
+            default=os.environ.get("VCW_PASSWORD"),
+            help="VCW login password (defaults to VCW_PASSWORD or a generated password)",
+        )
+        parser.add_argument(
+            "--tunnel",
+            action="store_true",
+            help="Start a Cloudflare Quick Tunnel (requires cloudflared on PATH).",
+        )
         cmd_opts = parser.parse_args()
 
         cmd_opts.port = cmd_opts.port if 0 <= cmd_opts.port <= 65535 else 7865
+
+        auth_enabled = cmd_opts.auth or cmd_opts.tunnel
+        auth_password = cmd_opts.auth_password
+        if auth_enabled and not auth_password:
+            auth_password = secrets.token_urlsafe(18)
+        if auth_enabled:
+            print("\nVCW login is enabled", flush=True)
+            print("Username: %s" % cmd_opts.auth_username, flush=True)
+            print("Password: %s" % auth_password, flush=True)
+            print("Keep this password private. It changes every time VCW starts.\n", flush=True)
 
         return (
             cmd_opts.pycmd,
@@ -217,6 +250,10 @@ class Config:
             cmd_opts.noparallel,
             cmd_opts.noautoopen,
             cmd_opts.dml,
+            auth_enabled,
+            cmd_opts.auth_username,
+            auth_password,
+            cmd_opts.tunnel,
         )
 
     def device_config(self) :

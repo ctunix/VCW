@@ -46,6 +46,25 @@ python webui.py --noautoopen
 
 The default port is `7865`.
 
+### Share securely with a Cloudflare Quick Tunnel
+
+Install `cloudflared`, then start VCW with a protected login and a free
+Cloudflare Quick Tunnel:
+
+```bash
+python webui.py --noautoopen --tunnel
+```
+
+VCW prints a random password and the `trycloudflare.com` URL in the terminal
+or notebook output. Log in as `vcw` with that password. A new password is
+created every time it starts. To keep a specific password, set `VCW_PASSWORD`
+before launching. Quick Tunnel URLs are temporary and should only be shared
+with people you trust.
+
+The **VCW Workflow** tab accepts a ZIP containing WAV files, creates a
+training folder for the existing Training tab, and creates a downloadable ZIP
+containing the exported model and index after training.
+
 ## Models
 
 Place model files in these folders:
