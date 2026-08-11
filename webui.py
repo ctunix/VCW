@@ -1073,6 +1073,22 @@ def stop_preprocess_dataset():
     return stop_train_task("数据切分")
 
 
+def require_feature_assets(if_f0, f0method):
+    """Fail before spawning workers when Kaggle model assets were not downloaded."""
+    required = [
+        pathlib.Path(now_dir) / "assets" / "hubert_base" / "config.json",
+        pathlib.Path(now_dir) / "assets" / "hubert_base" / "pytorch_model.bin",
+    ]
+    if if_f0 and f0method == "rmvpe":
+        required.append(pathlib.Path(now_dir) / "assets" / "rmvpe" / "rmvpe.pt")
+    missing = [str(path.relative_to(now_dir)) for path in required if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(
+            "Missing VCW model assets: %s. Run the notebook's Download VCW model assets cell, then retry Feature extraction."
+            % ", ".join(missing)
+        )
+
+
 # but2.click(extract_f0,[gpus6,np7,f0method8,if_f0_3,trainset_dir4],[info2])
 def run_extract_f0_feature(
     gpus,
@@ -1090,6 +1106,7 @@ def run_extract_f0_feature(
     gpus_rmvpe = validate_gpu_list(gpus_rmvpe, "RMVPE GPU")
     if f0method not in ("pm", "rmvpe"):
         raise ValueError(i18n("仅支持pm和rmvpe音高提取算法"))
+    require_feature_assets(if_f0, f0method)
     log_path = "%s/logs/%s/extract_f0_feature.log" % (now_dir, exp_dir)
     os.makedirs("%s/logs/%s" % (now_dir, exp_dir), exist_ok=True)
     validate_preprocess_outputs(exp_dir)
