@@ -119,38 +119,18 @@ class VC:
         # Dropdown updates use None when a package import refreshes choices
         # without selecting a model. Treat it like an intentional unload.
         if sid is None or sid == "" or sid == []:
-            if (
-                self.hubert_model is not None
-            ):  # 考虑到轮询, 需要加个判断看是否 sid 是由有模型切换到无模型的
+            if getattr(self, "hubert_model", None) is not None:
                 logger.info(i18n("清理模型缓存"))
-                clear_cuda_graph_cache(self.net_g)
+                clear_cuda_graph_cache(getattr(self, "net_g", None))
                 clear_cuda_graph_cache(self.hubert_model)
-                del (self.net_g, self.n_spk, self.hubert_model, self.tgt_sr)  # ,cpt
-                self.hubert_model = self.net_g = self.n_spk = self.hubert_model = (
-                    self.tgt_sr
-                ) = None
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-                ###楼下不这么折腾清理不干净
-                self.if_f0 = self.cpt.get("f0", 1)
-                self.version = self.cpt.get("version", "v1")
-                if self.version == "v1":
-                    if self.if_f0 == 1:
-                        self.net_g = SynthesizerTrnMs256NSFsid(
-                            *self.cpt["config"], is_half=self.config.is_half
-                        )
-                    else:
-                        self.net_g = SynthesizerTrnMs256NSFsid_nono(*self.cpt["config"])
-                elif self.version == "v2":
-                    if self.if_f0 == 1:
-                        self.net_g = SynthesizerTrnMs768NSFsid(
-                            *self.cpt["config"], is_half=self.config.is_half
-                        )
-                    else:
-                        self.net_g = SynthesizerTrnMs768NSFsid_nono(*self.cpt["config"])
-                del self.net_g, self.cpt
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+            self.net_g = None
+            self.hubert_model = None
+            self.pipeline = None
+            self.cpt = None
+            self.n_spk = None
+            self.tgt_sr = None
             return (
                 {"visible": False, "__type__": "update"},
                 {"visible": False, "value": None, "__type__": "update"},
@@ -170,7 +150,7 @@ class VC:
         person = f'{os.getenv("weight_root")}/{sid}'
         logger.info("%s: %s", i18n("正在加载模型"), person)
 
-        if self.net_g is not None:
+        if getattr(self, "net_g", None) is not None:
             clear_cuda_graph_cache(self.net_g)
 
         self.cpt = torch.load(person, map_location="cpu")
@@ -237,9 +217,16 @@ class VC:
         rms_mix_rate,
         protect,
     ):
-        if input_audio_path is None:
+        if not input_audio_path:
             return inference_status("单次推理", "等待输入", i18n("请上传音频文件")), None
-        f0_up_key = int(f0_up_key)
+        if getattr(self, "net_g", None) is None or self.pipeline is None:
+            return inference_status("单次推理", "等待模型", i18n("请先在推理音色列表中选择一个模型")), None
+        f0_up_key = int(f0_up_key or 0)
+        f0_method = f0_method if f0_method in ("pm", "rmvpe", "fcpe") else "rmvpe"
+        index_rate = float(index_rate if index_rate is not None else 0.75)
+        resample_sr = int(resample_sr or 0)
+        rms_mix_rate = float(rms_mix_rate if rms_mix_rate is not None else 0.25)
+        protect = float(protect if protect is not None else 0.33)
         try:
             audio = load_audio(input_audio_path, 16000)
             audio_max = np.abs(audio).max() / 0.95
@@ -308,7 +295,7 @@ class VC:
         except Exception:
             info = traceback.format_exc()
             logger.warning(info)
-            return inference_status("单次推理", "失败", info), (None, None)
+            return inference_status("单次推理", "失败", info), None
 
     def vc_multi(
         self,

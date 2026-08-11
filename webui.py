@@ -281,6 +281,8 @@ def clean():
 
 def selected_speaker_id(slider_value, dropdown_value):
     value = dropdown_value if dropdown_value is not None else slider_value
+    if value is None:
+        return 0
     if isinstance(value, str):
         match = re.search(r"ID\s*[:：]\s*(\d+)\s*[)）]?\s*$", value)
         if match:
