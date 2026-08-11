@@ -2040,6 +2040,17 @@ VCW_THEME_CSS = TRAINING_INFO_CSS + """
     border-color: var(--vcw-border) !important; font-family: inherit !important;
 }
 .gradio-container input:focus, .gradio-container textarea:focus { box-shadow: 0 0 0 2px #5ccfe633 !important; border-color: var(--vcw-primary) !important; }
+.gradio-container input[type="radio"], .gradio-container input[type="checkbox"] { accent-color: var(--vcw-primary) !important; }
+.gradio-container label:has(input[type="radio"]), .gradio-container label:has(input[type="checkbox"]) {
+    border: 1px solid #4a5f8f !important; border-radius: 3px !important;
+    transition: background .12s ease, border-color .12s ease, box-shadow .12s ease !important;
+}
+.gradio-container label:has(input[type="radio"]:checked), .gradio-container label:has(input[type="checkbox"]:checked) {
+    background: #123b4a !important; border-color: var(--vcw-primary) !important;
+    color: #effcff !important; box-shadow: inset 3px 0 0 var(--vcw-primary), 0 0 0 1px #5ccfe633 !important;
+}
+.gradio-container label:has(input[type="radio"]:checked) span, .gradio-container label:has(input[type="checkbox"]:checked) span { color: #effcff !important; font-weight: 700 !important; }
+.gradio-container select:focus, .gradio-container [role="combobox"]:focus-within { border-color: var(--vcw-primary) !important; box-shadow: 0 0 0 2px #5ccfe633 !important; }
 .gradio-container button.primary { background: var(--vcw-primary) !important; color: var(--vcw-bg) !important; border-color: var(--vcw-primary) !important; }
 .gradio-container button.primary:hover { background: var(--vcw-accent) !important; }
 .vcw-topbar { display:flex; align-items:center; gap:14px; margin:-2px 0 18px; padding:10px 14px; background:var(--vcw-surface); border:1px solid var(--vcw-border); border-top:2px solid var(--vcw-primary); }
