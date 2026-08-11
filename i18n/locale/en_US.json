@@ -282,5 +282,15 @@
     "音频设备": "Audio device",
     "音高全部为0，该音频无意义，跳过：%s": "All pitch values are zero; this audio is unusable and will be skipped: %s",
     "音高算法": "pitch detection algorithm",
-    "额外推理时长": "Extra inference time"
+    "额外推理时长": "Extra inference time",
+    "实验名只能包含1到80个字母、数字、下划线或连字符": "Experiment name may contain only 1-80 letters, numbers, underscores, or hyphens",
+    "%s只能使用以连字符分隔的GPU编号，例如0或0-1": "%s may use only hyphen-separated GPU IDs, for example 0 or 0-1",
+    "%s不是有效路径": "%s is not a valid path",
+    "%s不存在或不是文件夹：%s": "%s does not exist or is not a folder: %s",
+    "%s不存在或不是文件：%s": "%s does not exist or is not a file: %s",
+    "索引训练结束，但没有生成可用的added索引": "Index training finished but did not create a usable added index",
+    "训练进程结束，但没有生成最终模型：%s": "Training finished but did not create the final model: %s",
+    "训练进程结束，但最终模型没有被更新：%s": "Training finished but the final model was not updated: %s",
+    "子进程错误日志": "Child process error log",
+    "请先在推理音色列表中选择一个模型": "Select a model from the Inference voice list first"
 }
