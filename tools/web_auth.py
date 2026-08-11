@@ -27,7 +27,7 @@ def _upload_root() -> Path:
 
 
 def _large_upload_page() -> str:
-    return """<!doctype html><html><head><meta charset=utf-8><title>VCW large ZIP upload</title><style>body{max-width:620px;margin:40px auto;font:16px system-ui;background:#16161e;color:#d5d8ec}input,button{width:100%;box-sizing:border-box;margin:8px 0;padding:10px}button{background:#5ccfe6;border:0;font-weight:bold}pre{white-space:pre-wrap;color:#a1a8cf}</style></head><body><h2>VCW large dataset ZIP</h2><p>Select one ZIP. Your browser uploads it automatically in 32 MB chunks.</p><input id=project placeholder="Project name"><input id=file type=file accept=.zip><button onclick=upload()>Upload dataset ZIP</button><pre id=status></pre><script>async function upload(){const p=document.querySelector('#project').value.trim(),f=document.querySelector('#file').files[0],s=document.querySelector('#status');if(!/^[A-Za-z0-9_-]{1,80}$/.test(p)||!f){s.textContent='Enter a valid project name and select one ZIP.';return}const id=crypto.randomUUID().replace(/-/g,''),size=32*1024*1024,count=Math.ceil(f.size/size);for(let i=0;i<count;i++){s.textContent=`Uploading chunk ${i+1}/${count}…`;const r=await fetch('/__vcw_chunk_upload',{method:'POST',headers:{'X-VCW-Project':p,'X-VCW-Upload-ID':id,'X-VCW-Chunk-Index':i,'X-VCW-Chunk-Count':count,'X-VCW-Filename':f.name},body:f.slice(i*size,Math.min(f.size,(i+1)*size))});if(!r.ok){s.textContent='Upload failed: '+await r.text();return}}s.textContent='Upload complete. Return to VCW Workflow and click Import uploaded large ZIP.'}</script></body></html>"""
+    return """<!doctype html><html><head><meta charset=utf-8><title>VCW large ZIP upload</title><style>body{max-width:620px;margin:40px auto;font:16px system-ui;background:#16161e;color:#d5d8ec}input,button{width:100%;box-sizing:border-box;margin:8px 0;padding:10px}button{background:#5ccfe6;border:0;font-weight:bold}pre{white-space:pre-wrap;color:#a1a8cf}</style></head><body><h2>VCW large dataset ZIP</h2><p>Select one ZIP. Your browser uploads it automatically in 32 MB chunks.</p><input id=project placeholder="Project name"><input id=file type=file accept=.zip><button onclick=upload()>Upload dataset ZIP</button><pre id=status></pre><script>async function upload(){const p=document.querySelector('#project').value.trim(),f=document.querySelector('#file').files[0],s=document.querySelector('#status');if(!/^[A-Za-z0-9_-]{1,80}$/.test(p)||!f){s.textContent='Enter a valid project name and select one ZIP.';return}const id=crypto.randomUUID().replace(/-/g,''),size=32*1024*1024,count=Math.ceil(f.size/size);for(let i=0;i<count;i++){s.textContent=`Uploading chunk ${i+1}/${count}…`;const r=await fetch('/__vcw_chunk_upload',{method:'POST',headers:{'X-VCW-Project':p,'X-VCW-Upload-ID':id,'X-VCW-Chunk-Index':i,'X-VCW-Chunk-Count':count,'X-VCW-Filename':f.name},body:f.slice(i*size,Math.min(f.size,(i+1)*size))});if(!r.ok){s.textContent='Upload failed: '+await r.text();return}const result=await r.json();if(i===count-1&&!result.ready){s.textContent='Upload did not finish assembling on Kaggle. Try again.';return}}s.textContent='Upload complete. Return to VCW Workflow and click Import training audio.'}</script></body></html>"""
 
 
 def _login_page(error: str = "") -> str:
@@ -125,17 +125,19 @@ def add_password_login(fastapi_app, password: str, secure_cookie: bool) -> None:
         session = root / upload_id
         session.mkdir(parents=True, exist_ok=True)
         (session / f"{index:05d}.part").write_bytes(data)
+        assembled = False
         if index == count - 1 and all((session / f"{part:05d}.part").is_file() for part in range(count)):
-            ready = root / "ready"
-            ready.mkdir(parents=True, exist_ok=True)
-            temporary = ready / f".{project}.uploading"
+            ready_dir = root / "ready"
+            ready_dir.mkdir(parents=True, exist_ok=True)
+            temporary = ready_dir / f".{project}.uploading"
             with open(temporary, "wb") as target:
                 for part in range(count):
                     with open(session / f"{part:05d}.part", "rb") as source:
                         shutil.copyfileobj(source, target)
-            os.replace(temporary, ready / f"{project}.zip")
+            os.replace(temporary, ready_dir / f"{project}.zip")
             shutil.rmtree(session, ignore_errors=True)
-        return JSONResponse({"ok": True})
+            assembled = True
+        return JSONResponse({"ok": True, "ready": assembled})
 
 
 def create_protected_app(gradio_blocks, password: str, secure_cookie: bool):

@@ -2093,7 +2093,9 @@ def import_wav_zip(uploaded_zip, project_name):
 
 
 def import_wav_zip_for_training(uploaded_zip, project_name):
-    if uploaded_zip is None:
+    # Gradio 3.14 represents an untouched File input as either None or an
+    # empty string, depending on the frontend event path.
+    if not uploaded_zip:
         return import_server_uploaded_wav_zip(project_name)
     status, dataset_path = import_wav_zip(uploaded_zip, project_name)
     name, _ = workflow_experiment_dir(project_name)
