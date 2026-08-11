@@ -2093,22 +2093,33 @@ def import_wav_zip(uploaded_zip, project_name):
 
 
 def import_wav_zip_for_training(uploaded_zip, project_name):
-    # Gradio 3.14 represents an untouched File input as either None or an
-    # empty string, depending on the frontend event path.
     if not uploaded_zip:
-        return import_server_uploaded_wav_zip(project_name)
+        raise gr.Error("Choose a ZIP above, or use the completed large ZIP selector below.")
     status, dataset_path = import_wav_zip(uploaded_zip, project_name)
     name, _ = workflow_experiment_dir(project_name)
     return status, dataset_path, gr.update(value=dataset_path), gr.update(value=name)
 
 
-def import_server_uploaded_wav_zip(project_name):
-    name, _ = workflow_experiment_dir(project_name)
-    uploaded_zip = pathlib.Path(now_dir) / "TEMP" / "vcw_chunk_uploads" / "ready" / f"{name}.zip"
+def large_upload_ready_dir():
+    return pathlib.Path(now_dir) / "TEMP" / "vcw_chunk_uploads" / "ready"
+
+
+def available_large_uploads():
+    ready_dir = large_upload_ready_dir()
+    uploads = sorted(path.name for path in ready_dir.glob("*.zip") if path.is_file())
+    return gr.update(choices=uploads, value=uploads[0] if len(uploads) == 1 else None)
+
+
+def import_server_uploaded_wav_zip(selected_zip, project_name):
+    selected_name = pathlib.Path(selected_zip or "").name
+    if not selected_name or selected_name != selected_zip or not selected_name.lower().endswith(".zip"):
+        raise gr.Error("Select a completed large ZIP first.")
+    uploaded_zip = large_upload_ready_dir() / selected_name
     if not uploaded_zip.is_file():
-        raise gr.Error("No completed large ZIP upload exists for this project yet.")
+        raise gr.Error("That large ZIP is no longer available. Refresh the list and try again.")
     status, dataset_path = import_wav_zip(uploaded_zip, project_name)
     uploaded_zip.unlink(missing_ok=True)
+    name, _ = workflow_experiment_dir(project_name)
     return status, dataset_path, gr.update(value=dataset_path), gr.update(value=name)
 
 
@@ -2614,7 +2625,7 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                     with gr.Group(elem_id="vcw-workflow-upload"):
                         gr.Markdown("### 2 · Upload training audio")
                         gr.Markdown(
-                            "Choose one `.zip` containing WAV files. Folders inside the ZIP are fine. For a large ZIP, use the automatic uploader below, then return here and click **Import training audio**."
+                            "Choose one `.zip` containing WAV files. Folders inside the ZIP are fine."
                         )
                         workflow_zip = gr.File(
                             label="Training WAV ZIP", file_types=[".zip"], type="file", interactive=True
@@ -2626,9 +2637,15 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                         )
                         with gr.Accordion("ZIP too large to upload directly?", open=False):
                             gr.Markdown(
-                                "Select one ZIP in the automatic uploader. Your browser sends it in safe 32 MB chunks, then the same **Import training audio** button above imports it into this project."
+                                "Use the automatic uploader for one large ZIP. When it finishes, refresh the list below, select the ZIP that arrived on Kaggle, then import it."
                             )
                             gr.HTML('<a href="/__vcw_large_upload" target="_blank">Open automatic ZIP uploader</a>')
+                            with gr.Row():
+                                workflow_large_zip = gr.Dropdown(
+                                    label="Completed large ZIP on Kaggle", choices=[], interactive=True
+                                )
+                                workflow_refresh_large = gr.Button("Refresh uploaded ZIP list")
+                            workflow_import_large = gr.Button("Import selected large ZIP", variant="secondary")
             gr.Markdown(
                 "### 3 · Train\nAfter import, open **Training**. VCW fills in the project and dataset automatically; review settings and click **One-click Train**."
             )
@@ -2875,6 +2892,23 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                         exp_dir1,
                     ],
                     api_name="workflow_import_zip",
+                )
+                workflow_refresh_large.click(
+                    available_large_uploads,
+                    [],
+                    [workflow_large_zip],
+                    queue=False,
+                )
+                workflow_import_large.click(
+                    import_server_uploaded_wav_zip,
+                    [workflow_large_zip, workflow_project],
+                    [
+                        workflow_import_status,
+                        workflow_dataset_path,
+                        trainset_dir4,
+                        exp_dir1,
+                    ],
+                    api_name="workflow_import_large_zip",
                 )
                 workflow_use_dataset.click(
                     lambda path, project: (gr.update(value=path), gr.update(value=project)),
