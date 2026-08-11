@@ -2123,6 +2123,32 @@ def import_server_uploaded_wav_zip(selected_zip, project_name):
     return status, dataset_path, gr.update(value=dataset_path), gr.update(value=name)
 
 
+def workflow_import_file_safe(uploaded_zip, project_name):
+    """Return import failures in the Workflow panel, even on old Gradio builds."""
+    try:
+        return import_wav_zip_for_training(uploaded_zip, project_name)
+    except Exception as error:
+        return (
+            "Import failed: %s" % error,
+            "",
+            gr.update(),
+            gr.update(),
+        )
+
+
+def workflow_import_large_safe(selected_zip, project_name):
+    """Import a completed browser-chunk upload without relying on Gradio queue."""
+    try:
+        return import_server_uploaded_wav_zip(selected_zip, project_name)
+    except Exception as error:
+        return (
+            "Import failed: %s" % error,
+            "",
+            gr.update(),
+            gr.update(),
+        )
+
+
 def workflow_artifact_status(project_name):
     name, _ = workflow_experiment_dir(project_name)
     model = pathlib.Path(weight_root) / (name + ".pth")
@@ -2883,7 +2909,7 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                     api_name="train_preprocess",
                 )
                 workflow_import.click(
-                    import_wav_zip_for_training,
+                    workflow_import_file_safe,
                     [workflow_zip, workflow_project],
                     [
                         workflow_import_status,
@@ -2892,6 +2918,7 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                         exp_dir1,
                     ],
                     api_name="workflow_import_zip",
+                    queue=False,
                 )
                 workflow_refresh_large.click(
                     available_large_uploads,
@@ -2900,7 +2927,7 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                     queue=False,
                 )
                 workflow_import_large.click(
-                    import_server_uploaded_wav_zip,
+                    workflow_import_large_safe,
                     [workflow_large_zip, workflow_project],
                     [
                         workflow_import_status,
@@ -2909,6 +2936,7 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                         exp_dir1,
                     ],
                     api_name="workflow_import_large_zip",
+                    queue=False,
                 )
                 workflow_use_dataset.click(
                     lambda path, project: (gr.update(value=path), gr.update(value=project)),
