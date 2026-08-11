@@ -892,7 +892,7 @@ def train_task_stopped(state):
 
 def start_train_process(state, cmd, error_log_path=None):
     kwargs = {"shell": True, "cwd": now_dir}
-    if "train/train.py" in cmd.replace("\\", "/"):
+    if "-m train.train" in cmd:
         training_env = os.environ.copy()
         training_env["RVC_CUDA_GRAPH"] = "0"
         kwargs["env"] = training_env
@@ -997,7 +997,7 @@ def run_preprocess_dataset(
         if is_multispeaker_mode(training_mode)
         else ""
     )
-    cmd = '"%s" train/preprocess.py "%s" %s %s "%s/logs/%s" %s %.1f%s' % (
+    cmd = '"%s" -m train.preprocess "%s" %s %s "%s/logs/%s" %s %.1f%s' % (
         config.python_cmd,
         trainset_dir,
         sr,
@@ -1106,7 +1106,7 @@ def run_extract_f0_feature(
             f0method == "rmvpe" and not rmvpe_devices and not config.dml
         ):
             cmd = (
-                '"%s" train/dataset/extract_f0.py cpu "%s/logs/%s" %s %s'
+                '"%s" -m train.dataset.extract_f0 cpu "%s/logs/%s" %s %s'
                 % (config.python_cmd, now_dir, exp_dir, n_p, f0method)
             )
             processes.append(start_train_process(state, cmd, error_log_path))
@@ -1114,7 +1114,7 @@ def run_extract_f0_feature(
             count = len(rmvpe_devices)
             for index, gpu in enumerate(rmvpe_devices):
                 cmd = (
-                    '"%s" train/dataset/extract_f0.py cuda %s %s %s "%s/logs/%s" %s'
+                    '"%s" -m train.dataset.extract_f0 cuda %s %s %s "%s/logs/%s" %s'
                     % (
                         config.python_cmd,
                         count,
@@ -1128,7 +1128,7 @@ def run_extract_f0_feature(
                 processes.append(start_train_process(state, cmd, error_log_path))
         else:
             cmd = (
-                '"%s" train/dataset/extract_f0.py dml "%s/logs/%s"'
+                '"%s" -m train.dataset.extract_f0 dml "%s/logs/%s"'
                 % (config.python_cmd, now_dir, exp_dir)
             )
             processes.append(start_train_process(state, cmd, error_log_path))
@@ -1149,7 +1149,7 @@ def run_extract_f0_feature(
         count = len(feature_gpus)
         for index, gpu in enumerate(feature_gpus):
             cmd = (
-                '"%s" train/dataset/extract_hubert_feature.py %s %s %s %s "%s/logs/%s" %s %s'
+                '"%s" -m train.dataset.extract_hubert_feature %s %s %s %s "%s/logs/%s" %s %s'
                 % (
                     config.python_cmd,
                     config.device,
@@ -1165,7 +1165,7 @@ def run_extract_f0_feature(
             processes.append(start_train_process(state, cmd, error_log_path))
     else:
         cmd = (
-            '"%s" train/dataset/extract_hubert_feature.py %s 1 0 "%s/logs/%s" %s %s'
+            '"%s" -m train.dataset.extract_hubert_feature %s 1 0 "%s/logs/%s" %s %s'
             % (
                 config.python_cmd,
                 config.device,
@@ -1458,7 +1458,7 @@ def run_train_model(
         f.write("\n")
     if gpus16:
         cmd = (
-            '"%s" train/train.py -e "%s" -sr %s -f0 %s -bs %s -g %s -te %s -se %s %s %s -l %s -c %s -sw %s -v %s'
+            '"%s" -m train.train -e "%s" -sr %s -f0 %s -bs %s -g %s -te %s -se %s %s %s -l %s -c %s -sw %s -v %s'
             % (
                 config.python_cmd,
                 exp_dir1,
@@ -1478,7 +1478,7 @@ def run_train_model(
         )
     else:
         cmd = (
-            '"%s" train/train.py -e "%s" -sr %s -f0 %s -bs %s -te %s -se %s %s %s -l %s -c %s -sw %s -v %s'
+            '"%s" -m train.train -e "%s" -sr %s -f0 %s -bs %s -te %s -se %s %s %s -l %s -c %s -sw %s -v %s'
             % (
                 config.python_cmd,
                 exp_dir1,
@@ -1632,7 +1632,7 @@ def run_train_index(
         else "auto"
     )
     cmd = (
-        '"%s" train/train_index.py "%s" %s "%s" %s %s'
+        '"%s" -m train.train_index "%s" %s "%s" %s %s'
         % (
             config.python_cmd,
             exp_dir1,
