@@ -3,16 +3,31 @@
 from __future__ import annotations
 
 import hmac
+import os
 import secrets
+import re
+import shutil
+from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 import gradio as gr
 
 
 SESSION_COOKIE = "vcw_session"
 LOGIN_PATH = "/__vcw_login"
 PUBLIC_PATHS = {LOGIN_PATH, "/startup-events"}
+_PROJECT_RE = re.compile(r"[A-Za-z0-9_-]{1,80}")
+_UPLOAD_RE = re.compile(r"[a-f0-9-]{16,64}")
+_CHUNK_BYTES = 32 * 1024 * 1024
+
+
+def _upload_root() -> Path:
+    return Path(os.environ.get("VCW_CHUNK_UPLOAD_ROOT", "TEMP/vcw_chunk_uploads"))
+
+
+def _large_upload_page() -> str:
+    return """<!doctype html><html><head><meta charset=utf-8><title>VCW large ZIP upload</title><style>body{max-width:620px;margin:40px auto;font:16px system-ui;background:#16161e;color:#d5d8ec}input,button{width:100%;box-sizing:border-box;margin:8px 0;padding:10px}button{background:#5ccfe6;border:0;font-weight:bold}pre{white-space:pre-wrap;color:#a1a8cf}</style></head><body><h2>VCW large dataset ZIP</h2><p>Select one ZIP. Your browser uploads it automatically in 32 MB chunks.</p><input id=project placeholder="Project name"><input id=file type=file accept=.zip><button onclick=upload()>Upload dataset ZIP</button><pre id=status></pre><script>async function upload(){const p=document.querySelector('#project').value.trim(),f=document.querySelector('#file').files[0],s=document.querySelector('#status');if(!/^[A-Za-z0-9_-]{1,80}$/.test(p)||!f){s.textContent='Enter a valid project name and select one ZIP.';return}const id=crypto.randomUUID().replace(/-/g,''),size=32*1024*1024,count=Math.ceil(f.size/size);for(let i=0;i<count;i++){s.textContent=`Uploading chunk ${i+1}/${count}…`;const r=await fetch('/__vcw_chunk_upload',{method:'POST',headers:{'X-VCW-Project':p,'X-VCW-Upload-ID':id,'X-VCW-Chunk-Index':i,'X-VCW-Chunk-Count':count,'X-VCW-Filename':f.name},body:f.slice(i*size,Math.min(f.size,(i+1)*size))});if(!r.ok){s.textContent='Upload failed: '+await r.text();return}}s.textContent='Upload complete. Return to VCW Workflow and click Import uploaded large ZIP.'}</script></body></html>"""
 
 
 def _login_page(error: str = "") -> str:
@@ -84,6 +99,43 @@ def add_password_login(fastapi_app, password: str, secure_cookie: bool) -> None:
         return response
 
     fastapi_app.add_middleware(PasswordGate, session_token=session_token)
+
+    @fastapi_app.get("/__vcw_large_upload")
+    async def large_upload_page():
+        return HTMLResponse(_large_upload_page())
+
+    @fastapi_app.post("/__vcw_chunk_upload")
+    async def receive_chunk(request: Request):
+        project = request.headers.get("x-vcw-project", "")
+        upload_id = request.headers.get("x-vcw-upload-id", "")
+        filename = Path(request.headers.get("x-vcw-filename", "")).name
+        try:
+            index = int(request.headers.get("x-vcw-chunk-index", "-1"))
+            count = int(request.headers.get("x-vcw-chunk-count", "0"))
+        except ValueError:
+            return JSONResponse({"error": "Invalid chunk metadata."}, status_code=400)
+        if not _PROJECT_RE.fullmatch(project) or not _UPLOAD_RE.fullmatch(upload_id):
+            return JSONResponse({"error": "Invalid upload metadata."}, status_code=400)
+        if not filename.lower().endswith(".zip") or not 0 <= index < count <= 4096:
+            return JSONResponse({"error": "Invalid ZIP chunk."}, status_code=400)
+        data = await request.body()
+        if not data or len(data) > _CHUNK_BYTES:
+            return JSONResponse({"error": "Chunk must be between 1 byte and 32 MB."}, status_code=413)
+        root = _upload_root()
+        session = root / upload_id
+        session.mkdir(parents=True, exist_ok=True)
+        (session / f"{index:05d}.part").write_bytes(data)
+        if index == count - 1 and all((session / f"{part:05d}.part").is_file() for part in range(count)):
+            ready = root / "ready"
+            ready.mkdir(parents=True, exist_ok=True)
+            temporary = ready / f".{project}.uploading"
+            with open(temporary, "wb") as target:
+                for part in range(count):
+                    with open(session / f"{part:05d}.part", "rb") as source:
+                        shutil.copyfileobj(source, target)
+            os.replace(temporary, ready / f"{project}.zip")
+            shutil.rmtree(session, ignore_errors=True)
+        return JSONResponse({"ok": True})
 
 
 def create_protected_app(gradio_blocks, password: str, secure_cookie: bool):

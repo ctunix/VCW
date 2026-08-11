@@ -2098,6 +2098,16 @@ def import_wav_zip_for_training(uploaded_zip, project_name):
     return status, dataset_path, gr.update(value=dataset_path), gr.update(value=name)
 
 
+def import_server_uploaded_wav_zip(project_name):
+    name, _ = workflow_experiment_dir(project_name)
+    uploaded_zip = pathlib.Path(now_dir) / "TEMP" / "vcw_chunk_uploads" / "ready" / f"{name}.zip"
+    if not uploaded_zip.is_file():
+        raise gr.Error("No completed large ZIP upload exists for this project yet.")
+    status, dataset_path = import_wav_zip(uploaded_zip, project_name)
+    uploaded_zip.unlink(missing_ok=True)
+    return status, dataset_path, gr.update(value=dataset_path), gr.update(value=name)
+
+
 def workflow_artifact_status(project_name):
     name, _ = workflow_experiment_dir(project_name)
     model = pathlib.Path(weight_root) / (name + ".pth")
@@ -2610,6 +2620,12 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                         workflow_dataset_path = gr.Textbox(
                             label="Prepared dataset folder", interactive=False
                         )
+                        with gr.Accordion("Large dataset ZIP", open=False):
+                            gr.Markdown(
+                                "For a ZIP larger than Cloudflare allows, use the automatic chunk uploader. It lets you select one ZIP and your browser uploads it in safe 32 MB chunks."
+                            )
+                            gr.HTML('<a href="/__vcw_large_upload" target="_blank">Open automatic large ZIP uploader</a>')
+                            workflow_import_large = gr.Button("Import uploaded large ZIP", variant="secondary")
             gr.Markdown(
                 "### 3 · Train\nAfter import, open **Training**. VCW fills in the project and dataset automatically; review settings and click **One-click Train**."
             )
@@ -2856,6 +2872,17 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                         exp_dir1,
                     ],
                     api_name="workflow_import_zip",
+                )
+                workflow_import_large.click(
+                    import_server_uploaded_wav_zip,
+                    [workflow_project],
+                    [
+                        workflow_import_status,
+                        workflow_dataset_path,
+                        trainset_dir4,
+                        exp_dir1,
+                    ],
+                    api_name="workflow_import_zip_chunks",
                 )
                 workflow_use_dataset.click(
                     lambda path, project: (gr.update(value=path), gr.update(value=project)),
