@@ -85,6 +85,109 @@ import time
 from zipfile import ZIP_DEFLATED, ZipFile
 
 
+VCW_MODEL_REPO = "lj1995/VoiceConversionWebUI"
+VCW_MODEL_REVISION = "main"
+
+
+def vcw_model_asset_status():
+    """Return a readable inventory of assets needed by inference and training."""
+    root = pathlib.Path(now_dir)
+    required = {
+        "HuBERT config": root / "assets" / "hubert_base" / "config.json",
+        "HuBERT preprocessor config": root / "assets" / "hubert_base" / "preprocessor_config.json",
+        "HuBERT weights": root / "assets" / "hubert_base" / "pytorch_model.bin",
+        "RMVPE weights": root / "assets" / "rmvpe" / "rmvpe.pt",
+        "mute reference audio": root / "logs" / "mute" / "0_gt_wavs" / "mute48k.wav",
+        "mute reference features": root / "logs" / "mute" / "3_feature768" / "mute.npy",
+    }
+    missing = [name for name, path in required.items() if not path.is_file()]
+    pretrained = list((root / "assets" / "pretrained").glob("*.pth"))
+    pretrained_v2 = list((root / "assets" / "pretrained_v2").glob("*.pth"))
+    if not pretrained:
+        missing.append("v1 pretrained models")
+    if not pretrained_v2:
+        missing.append("v2 pretrained models")
+    if missing:
+        return (
+            "Missing VCW assets:\n- "
+            + "\n- ".join(missing)
+            + "\n\nSource: Hugging Face "
+            + VCW_MODEL_REPO
+            + "\nClick ‘Download missing assets’ below."
+        )
+    return (
+        "VCW assets are ready.\n"
+        f"HuBERT, RMVPE, mute references, v1, and v2 pretrained models detected.\n"
+        f"Source: Hugging Face {VCW_MODEL_REPO}"
+    )
+
+
+def download_missing_vcw_model_assets():
+    """Download only absent public model assets and report the final inventory."""
+    try:
+        from huggingface_hub import hf_hub_download, snapshot_download
+
+        root = pathlib.Path(now_dir)
+        required_status = vcw_model_asset_status()
+        if "VCW assets are ready." in required_status:
+            return required_status
+
+        hubert_files = [
+            root / "assets" / "hubert_base" / "config.json",
+            root / "assets" / "hubert_base" / "preprocessor_config.json",
+            root / "assets" / "hubert_base" / "pytorch_model.bin",
+        ]
+        if any(not path.is_file() for path in hubert_files):
+            snapshot_download(
+                repo_id=VCW_MODEL_REPO,
+                revision=VCW_MODEL_REVISION,
+                allow_patterns=["hubert_base/*"],
+                local_dir=str(root / "assets"),
+            )
+
+        rmvpe_path = root / "assets" / "rmvpe" / "rmvpe.pt"
+        if not rmvpe_path.is_file():
+            rmvpe_path.parent.mkdir(parents=True, exist_ok=True)
+            hf_hub_download(
+                repo_id=VCW_MODEL_REPO,
+                filename="rmvpe.pt",
+                revision=VCW_MODEL_REVISION,
+                local_dir=str(rmvpe_path.parent),
+            )
+
+        if not any((root / "assets" / "pretrained").glob("*.pth")):
+            snapshot_download(
+                repo_id=VCW_MODEL_REPO,
+                revision=VCW_MODEL_REVISION,
+                allow_patterns=["pretrained/*"],
+                local_dir=str(root / "assets"),
+            )
+        if not any((root / "assets" / "pretrained_v2").glob("*.pth")):
+            snapshot_download(
+                repo_id=VCW_MODEL_REPO,
+                revision=VCW_MODEL_REVISION,
+                allow_patterns=["pretrained_v2/*"],
+                local_dir=str(root / "assets"),
+            )
+
+        mute_wav = root / "logs" / "mute" / "0_gt_wavs" / "mute48k.wav"
+        mute_feature = root / "logs" / "mute" / "3_feature768" / "mute.npy"
+        if not mute_wav.is_file() or not mute_feature.is_file():
+            archive_dir = root / ".model-downloads"
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            archive = hf_hub_download(
+                repo_id=VCW_MODEL_REPO,
+                filename="mute.zip",
+                revision=VCW_MODEL_REVISION,
+                local_dir=str(archive_dir),
+            )
+            with ZipFile(archive) as archive_file:
+                archive_file.extractall(root / "logs")
+        return vcw_model_asset_status()
+    except Exception:
+        return "Asset download failed:\n\n" + traceback.format_exc()
+
+
 logging.getLogger("numba").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
@@ -2699,6 +2802,28 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                 '<span class="vcw-step">START HERE · NEW VOICE</span>\n\n'
                 "Create a project, upload one WAV ZIP, then train and download your model."
             )
+            with gr.Group(elem_id="vcw-workflow-assets"):
+                gr.Markdown("### 0 · Check model assets")
+                gr.Markdown(
+                    "VCW needs HuBERT, RMVPE, and pretrained training models. Missing files are detected automatically; download them here before processing or training."
+                )
+                with gr.Row(equal_height=False):
+                    workflow_assets_status = gr.Textbox(
+                        label="Model asset status",
+                        value=vcw_model_asset_status(),
+                        lines=5,
+                        interactive=False,
+                    )
+                    workflow_assets_download = gr.Button(
+                        "Download missing assets",
+                        variant="secondary",
+                    )
+                workflow_assets_download.click(
+                    download_missing_vcw_model_assets,
+                    [],
+                    [workflow_assets_status],
+                    api_name="workflow_download_model_assets",
+                )
             with gr.Row(equal_height=False):
                 with gr.Column(scale=1):
                     with gr.Group(elem_id="vcw-workflow-model"):
