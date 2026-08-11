@@ -835,6 +835,8 @@ def begin_train_task(name):
             state = {
                 "name": name,
                 "processes": [],
+                "error_logs": [],
+                "error_streams": [],
                 "stop_requested": False,
             }
             TRAIN_TASK = state
@@ -877,6 +879,10 @@ def finish_train_task(state):
     with TRAIN_TASK_LOCK:
         if TRAIN_TASK is state:
             TRAIN_TASK = None
+        error_streams = list(state.get("error_streams", []))
+        state["error_streams"] = []
+    for error_stream in error_streams:
+        error_stream.close()
 
 
 def train_task_stopped(state):
@@ -884,7 +890,7 @@ def train_task_stopped(state):
         return state["stop_requested"]
 
 
-def start_train_process(state, cmd):
+def start_train_process(state, cmd, error_log_path=None):
     kwargs = {"shell": True, "cwd": now_dir}
     if "train/train.py" in cmd.replace("\\", "/"):
         training_env = os.environ.copy()
@@ -894,10 +900,17 @@ def start_train_process(state, cmd):
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     else:
         kwargs["start_new_session"] = True
+    if error_log_path:
+        error_stream = open(error_log_path, "a", encoding="utf8")
+        kwargs["stdout"] = error_stream
+        kwargs["stderr"] = subprocess.STDOUT
     logger.info("%s: %s", i18n("执行命令"), cmd)
     process = Popen(cmd, **kwargs)
     with TRAIN_TASK_LOCK:
         state["processes"].append(process)
+        if error_log_path:
+            state["error_logs"].append(error_log_path)
+            state["error_streams"].append(error_stream)
         stopped = state["stop_requested"]
     if stopped:
         kill_process_tree(process, state["name"], logger)
@@ -954,7 +967,14 @@ def wait_train_processes(
     if not train_task_stopped(state):
         failed = [process.returncode for process in processes if process.returncode != 0]
         if failed:
-            raise RuntimeError(i18n("子进程执行失败，返回码：%s") % failed)
+            error_logs = list(dict.fromkeys(state.get("error_logs", [])))
+            detail = "\n\n".join(
+                "%s:\n%s" % (i18n("子进程错误日志"), read_log(path, 80))
+                for path in error_logs
+                if read_log(path, 80)
+            )
+            message = i18n("子进程执行失败，返回码：%s") % failed
+            raise RuntimeError("%s\n%s" % (message, detail) if detail else message)
 
 
 def run_preprocess_dataset(
@@ -968,6 +988,9 @@ def run_preprocess_dataset(
         prepare_multispeaker_manifest(trainset_dir, exp_dir)
     log_path = "%s/logs/%s/preprocess.log" % (now_dir, exp_dir)
     with open(log_path, "w", encoding="utf8"):
+        pass
+    error_log_path = log_path + ".stderr"
+    with open(error_log_path, "w", encoding="utf8"):
         pass
     manifest_arg = (
         ' "%s/logs/%s/multispeaker_manifest.json"' % (now_dir, exp_dir)
@@ -996,7 +1019,7 @@ def run_preprocess_dataset(
         flush=True,
     )
     try:
-        process = start_train_process(state, cmd)
+        process = start_train_process(state, cmd, error_log_path)
         yield from wait_train_processes(
             state, [process], log_path, "数据切分", format_output
         )
@@ -1072,6 +1095,9 @@ def run_extract_f0_feature(
     validate_preprocess_outputs(exp_dir)
     with open(log_path, "w", encoding="utf8"):
         pass
+    error_log_path = log_path + ".stderr"
+    with open(error_log_path, "w", encoding="utf8"):
+        pass
 
     if if_f0:
         processes = []
@@ -1083,7 +1109,7 @@ def run_extract_f0_feature(
                 '"%s" train/dataset/extract_f0.py cpu "%s/logs/%s" %s %s'
                 % (config.python_cmd, now_dir, exp_dir, n_p, f0method)
             )
-            processes.append(start_train_process(state, cmd))
+            processes.append(start_train_process(state, cmd, error_log_path))
         elif rmvpe_devices:
             count = len(rmvpe_devices)
             for index, gpu in enumerate(rmvpe_devices):
@@ -1099,13 +1125,13 @@ def run_extract_f0_feature(
                         config.is_half,
                     )
                 )
-                processes.append(start_train_process(state, cmd))
+                processes.append(start_train_process(state, cmd, error_log_path))
         else:
             cmd = (
                 '"%s" train/dataset/extract_f0.py dml "%s/logs/%s"'
                 % (config.python_cmd, now_dir, exp_dir)
             )
-            processes.append(start_train_process(state, cmd))
+            processes.append(start_train_process(state, cmd, error_log_path))
         yield from wait_train_processes(
             state, processes, log_path, "F0提取", format_output
         )
@@ -1113,6 +1139,8 @@ def run_extract_f0_feature(
             return
 
         with open(log_path, "w", encoding="utf8"):
+            pass
+        with open(error_log_path, "w", encoding="utf8"):
             pass
 
     feature_gpus = [gpu for gpu in gpus.split("-") if gpu != ""]
@@ -1134,7 +1162,7 @@ def run_extract_f0_feature(
                     config.is_half,
                 )
             )
-            processes.append(start_train_process(state, cmd))
+            processes.append(start_train_process(state, cmd, error_log_path))
     else:
         cmd = (
             '"%s" train/dataset/extract_hubert_feature.py %s 1 0 "%s/logs/%s" %s %s'
@@ -1147,7 +1175,7 @@ def run_extract_f0_feature(
                 config.is_half,
             )
         )
-        processes.append(start_train_process(state, cmd))
+        processes.append(start_train_process(state, cmd, error_log_path))
     yield from wait_train_processes(
         state, processes, log_path, "HuBERT特征", format_output
     )
@@ -1472,7 +1500,10 @@ def run_train_model(
     previous_model_mtime = (
         os.stat(final_model).st_mtime_ns if os.path.isfile(final_model) else None
     )
-    process = start_train_process(state, cmd)
+    error_log_path = os.path.join(exp_dir, "train.log.stderr")
+    with open(error_log_path, "w", encoding="utf8"):
+        pass
+    process = start_train_process(state, cmd, error_log_path)
     yield from wait_train_processes(
         state,
         [process],
@@ -1590,6 +1621,9 @@ def run_train_index(
     log_path = os.path.join(exp_dir, "train_index.log")
     with open(log_path, "w", encoding="utf8"):
         pass
+    error_log_path = log_path + ".stderr"
+    with open(error_log_path, "w", encoding="utf8"):
+        pass
     index_mode = (
         "multi"
         if is_multispeaker_mode(training_mode)
@@ -1608,7 +1642,7 @@ def run_train_index(
             index_mode,
         )
     )
-    process = start_train_process(state, cmd)
+    process = start_train_process(state, cmd, error_log_path)
     yield from wait_train_processes(
         state, [process], log_path, "索引训练", format_output
     )
