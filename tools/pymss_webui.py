@@ -308,6 +308,16 @@ class MSSTBatchSeparator:
 
         model_path = weight_pymss_root / spec.model_file
         config_path = weight_pymss_root / spec.config_file
+        # The catalog downloader keeps files in category subfolders, while
+        # older VCW installs used a flat assets/pymss_weights directory.
+        if not model_path.is_file():
+            matches = list(weight_pymss_root.rglob(spec.model_file))
+            if matches:
+                model_path = matches[0]
+        if not config_path.is_file():
+            matches = list(weight_pymss_root.rglob(spec.config_file))
+            if matches:
+                config_path = matches[0]
         if not model_path.is_file():
             raise FileNotFoundError(model_path)
         if not config_path.is_file():

@@ -45,6 +45,7 @@ from configs.config import Config, GPU_INDEX, GPU_INFOS, GPU_MEMORY, IS_GPU
 from infer.vc.modules import VC
 from infer.vc.utils import get_index_path_from_model
 from tools.pymss_webui import (
+    MODEL_SPECS,
     PYMSS_MODEL_CHOICES,
     get_model_info,
     pymss_separate as _pymss_separate_core,
@@ -186,6 +187,53 @@ def download_missing_vcw_model_assets():
         return vcw_model_asset_status()
     except Exception:
         return "Asset download failed:\n\n" + traceback.format_exc()
+
+
+def pymss_model_paths(model_name):
+    """Find the selected PyMSS model and its config in flat or catalog layout."""
+    root = pathlib.Path(now_dir) / "assets" / "pymss_weights"
+    spec = next((item for item in MODEL_SPECS if item.label == model_name), None)
+    if spec is None:
+        return None, None
+    model_path = root / spec.model_file
+    config_path = root / spec.config_file
+    if not model_path.is_file():
+        model_matches = list(root.rglob(spec.model_file))
+        model_path = model_matches[0] if model_matches else model_path
+    if not config_path.is_file():
+        config_matches = list(root.rglob(spec.config_file))
+        config_path = config_matches[0] if config_matches else config_path
+    return model_path, config_path
+
+
+def pymss_model_asset_status(model_name):
+    model_path, config_path = pymss_model_paths(model_name)
+    if model_path is None:
+        return "Select a PyMSS model."
+    if model_path.is_file() and config_path.is_file():
+        return f"Ready: {model_path.name}\nConfig: {config_path.name}"
+    missing = []
+    if not model_path.is_file():
+        missing.append(model_path.name)
+    if not config_path.is_file():
+        missing.append(config_path.name)
+    return "Missing PyMSS files:\n- " + "\n- ".join(missing)
+
+
+def download_pymss_model(model_name):
+    """Download one selected PyMSS model and its catalog config."""
+    try:
+        from tools.pymss.model_download import download_model
+
+        spec = next((item for item in MODEL_SPECS if item.label == model_name), None)
+        if spec is None:
+            return "Select a valid PyMSS model first."
+        root = pathlib.Path(now_dir) / "assets" / "pymss_weights"
+        root.mkdir(parents=True, exist_ok=True)
+        download_model(spec.model_file, model_dir=str(root), source="huggingface")
+        return pymss_model_asset_status(model_name)
+    except Exception:
+        return "PyMSS model download failed:\n\n" + traceback.format_exc()
 
 
 logging.getLogger("numba").setLevel(logging.WARNING)
@@ -2823,6 +2871,34 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                     [],
                     [workflow_assets_status],
                     api_name="workflow_download_model_assets",
+                )
+                with gr.Row(equal_height=False):
+                    workflow_pymss_model = gr.Dropdown(
+                        label="PyMSS separation model",
+                        choices=pymss_names,
+                        value=pymss_names[0],
+                        interactive=True,
+                    )
+                    workflow_pymss_status = gr.Textbox(
+                        label="PyMSS model status",
+                        value=pymss_model_asset_status(pymss_names[0]),
+                        interactive=False,
+                    )
+                    workflow_pymss_download = gr.Button(
+                        "Download selected PyMSS model",
+                        variant="secondary",
+                    )
+                workflow_pymss_model.change(
+                    pymss_model_asset_status,
+                    [workflow_pymss_model],
+                    [workflow_pymss_status],
+                    queue=False,
+                )
+                workflow_pymss_download.click(
+                    download_pymss_model,
+                    [workflow_pymss_model],
+                    [workflow_pymss_status],
+                    api_name="workflow_download_pymss_model",
                 )
             with gr.Row(equal_height=False):
                 with gr.Column(scale=1):
