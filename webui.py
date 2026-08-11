@@ -787,7 +787,7 @@ def run_pymss_separation(
 ):
     progress_state = {
         "percent": 0.0,
-        "label": "正在准备 PyMSS 分离任务",
+        "label": "Preparing PyMSS separation",
         "state": "running",
     }
     busy = False
@@ -806,10 +806,10 @@ def run_pymss_separation(
             progress_state["percent"] = (
                 (file_index - 1 + file_fraction) / file_count * 100
             )
-            progress_state["label"] = "文件 %s/%s · %s · %.0f/%.0f 秒" % (
+            progress_state["label"] = "File %s/%s · %s · %.0f/%.0f sec" % (
                 file_index,
                 file_count,
-                message or "正在处理音频",
+                message or "Processing audio",
                 done,
                 total,
             )
@@ -821,14 +821,14 @@ def run_pymss_separation(
         elif event_type == "file":
             progress_state["percent"] = file_index / file_count * 100
             progress_state["label"] = (
-                message.splitlines()[0] if message else "文件处理结束"
+                message.splitlines()[0] if message else "File processing finished"
             )
             progress_state["state"] = "running" if event.get("ok") else "failed"
         elif event_type == "done":
             successful = int(event.get("successful") or 0)
             failed = int(event.get("failed") or 0)
             progress_state["percent"] = 100.0
-            progress_state["label"] = "分离完成：成功 %s，失败 %s" % (
+            progress_state["label"] = "Separation finished: %s succeeded, %s failed" % (
                 successful,
                 failed,
             )
@@ -838,11 +838,11 @@ def run_pymss_separation(
             progress_state["label"] = message
             progress_state["state"] = "running"
         elif event_type == "cancelled":
-            progress_state["label"] = message or "PyMSS 分离任务已停止"
+            progress_state["label"] = message or "PyMSS separation stopped"
             progress_state["state"] = "stopped"
         elif event_type in {"fatal", "busy"}:
             progress_state["label"] = (
-                message.splitlines()[0] if message else "PyMSS 分离任务失败"
+                message.splitlines()[0] if message else "PyMSS separation failed"
             )
             progress_state["state"] = "failed"
             busy = event_type == "busy"
@@ -874,9 +874,9 @@ def run_pymss_separation(
                 stop_button,
             )
     except Exception:
-        last_info = "失败\n%s" % traceback.format_exc()
+        last_info = "Failed\n%s" % traceback.format_exc()
         progress_state.update(
-            {"label": "PyMSS 分离任务失败", "state": "failed"}
+            {"label": "PyMSS separation failed", "state": "failed"}
         )
         logger.exception("PyMSS WebUI task failed")
 
@@ -891,7 +891,7 @@ def run_pymss_separation(
 def stop_pymss_webui():
     return (
         _stop_pymss_separation_core(),
-        render_pymss_progress(0, "PyMSS 分离任务已停止", "stopped"),
+        render_pymss_progress(0, "PyMSS separation stopped", "stopped"),
         button_update(visible=True),
         button_update(visible=False),
     )
@@ -2309,31 +2309,8 @@ def import_wav_zip(uploaded_zip, project_name):
 
 def import_wav_zip_for_training(uploaded_zip, project_name):
     if not uploaded_zip:
-        raise gr.Error("Choose a ZIP above, or use the completed large ZIP selector below.")
+        raise gr.Error("Choose a ZIP containing WAV files first.")
     status, dataset_path = import_wav_zip(uploaded_zip, project_name)
-    name, _ = workflow_experiment_dir(project_name)
-    return status, dataset_path, gr.update(value=dataset_path), gr.update(value=name)
-
-
-def large_upload_ready_dir():
-    return pathlib.Path(now_dir) / "TEMP" / "vcw_chunk_uploads" / "ready"
-
-
-def available_large_uploads():
-    ready_dir = large_upload_ready_dir()
-    uploads = sorted(path.name for path in ready_dir.glob("*.zip") if path.is_file())
-    return gr.update(choices=uploads, value=uploads[0] if len(uploads) == 1 else None)
-
-
-def import_server_uploaded_wav_zip(selected_zip, project_name):
-    selected_name = pathlib.Path(selected_zip or "").name
-    if not selected_name or selected_name != selected_zip or not selected_name.lower().endswith(".zip"):
-        raise gr.Error("Select a completed large ZIP first.")
-    uploaded_zip = large_upload_ready_dir() / selected_name
-    if not uploaded_zip.is_file():
-        raise gr.Error("That large ZIP is no longer available. Refresh the list and try again.")
-    status, dataset_path = import_wav_zip(uploaded_zip, project_name)
-    uploaded_zip.unlink(missing_ok=True)
     name, _ = workflow_experiment_dir(project_name)
     return status, dataset_path, gr.update(value=dataset_path), gr.update(value=name)
 
@@ -2342,19 +2319,6 @@ def workflow_import_file_safe(uploaded_zip, project_name):
     """Return import failures in the Workflow panel, even on old Gradio builds."""
     try:
         return import_wav_zip_for_training(uploaded_zip, project_name)
-    except Exception as error:
-        return (
-            "Import failed: %s" % error,
-            "",
-            gr.update(),
-            gr.update(),
-        )
-
-
-def workflow_import_large_safe(selected_zip, project_name):
-    """Import a completed browser-chunk upload without relying on Gradio queue."""
-    try:
-        return import_server_uploaded_wav_zip(selected_zip, project_name)
     except Exception as error:
         return (
             "Import failed: %s" % error,
@@ -2926,19 +2890,8 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                         workflow_dataset_path = gr.Textbox(
                             label="Prepared dataset folder", interactive=False
                         )
-                        with gr.Accordion("ZIP too large to upload directly?", open=False):
-                            gr.Markdown(
-                                "Use the automatic uploader for one large ZIP. When it finishes, refresh the list below, select the ZIP that arrived on Kaggle, then import it."
-                            )
-                            gr.HTML('<a href="/__vcw_large_upload" target="_blank">Open automatic ZIP uploader</a>')
-                            with gr.Row():
-                                workflow_large_zip = gr.Dropdown(
-                                    label="Completed large ZIP on Kaggle", choices=[], interactive=True
-                                )
-                                workflow_refresh_large = gr.Button("Refresh uploaded ZIP list")
-                            workflow_import_large = gr.Button("Import selected large ZIP", variant="secondary")
             gr.Markdown(
-                "### 3 · Train\nAfter import, open **Training**. VCW fills in the project and dataset automatically; review settings and click **One-click Train**."
+                "### 3 · Train\nAfter import, open **Training**. VCW fills in the project and dataset automatically. Use the numbered steps there: process data → extract features → train model → train index. **One-click Train** runs all four stages in order."
             )
             with gr.Accordion("Advanced settings and tools", open=False):
                 gr.Markdown(
@@ -2946,7 +2899,7 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                 )
                 with gr.Row():
                     workflow_adv_sr = gr.Radio(
-                        label="Sample rate", choices=["32k", "40k", "48k"], value="40k"
+                        label="Sample rate", choices=["40k", "48k"], value="40k"
                     )
                     workflow_adv_f0 = gr.Checkbox(
                         label="Pitch guidance (recommended for singing)", value=True
@@ -3053,6 +3006,10 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                 )
 
         with gr.TabItem(i18n("训练")):
+            gr.Markdown(
+                "## VCW training pipeline\n"
+                "Use **One-click training** for a normal single-speaker project. It runs the stages in order and stops if a stage fails. The individual buttons are for restarting one failed stage only."
+            )
             gr.Markdown(
                 value=i18n(
                     "step1: 填写实验配置. 实验数据放在logs下, 每个实验一个文件夹, 需手工输入实验名路径, 内含实验配置, 日志, 训练得到的模型文件. "
@@ -3183,24 +3140,6 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                         exp_dir1,
                     ],
                     api_name="workflow_import_zip",
-                    queue=False,
-                )
-                workflow_refresh_large.click(
-                    available_large_uploads,
-                    [],
-                    [workflow_large_zip],
-                    queue=False,
-                )
-                workflow_import_large.click(
-                    workflow_import_large_safe,
-                    [workflow_large_zip, workflow_project],
-                    [
-                        workflow_import_status,
-                        workflow_dataset_path,
-                        trainset_dir4,
-                        exp_dir1,
-                    ],
-                    api_name="workflow_import_large_zip",
                     queue=False,
                 )
                 workflow_use_dataset.click(
@@ -3379,11 +3318,11 @@ with gr.Blocks(title="VCW WebUI", css=VCW_THEME_CSS) as app:
                         value=gpus,
                         interactive=True,
                     )
-                    but3 = gr.Button(i18n("训练模型"), variant="primary")
+                    but3 = gr.Button(i18n("训练模型"), variant="secondary")
                     stop_but3 = gr.Button(
                         i18n("停止训练模型"), variant="stop", visible=False
                     )
-                    but4 = gr.Button(i18n("训练特征索引"), variant="primary")
+                    but4 = gr.Button(i18n("训练特征索引"), variant="secondary")
                     stop_but4 = gr.Button(
                         i18n("停止训练索引"), variant="stop", visible=False
                     )
